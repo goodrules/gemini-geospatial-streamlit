@@ -10,6 +10,8 @@ from google.genai import types
 import numpy as np
 import pandas as pd
 from folium.plugins import HeatMap
+from google.cloud import bigquery
+import shapely.wkt
 
 # Configure page
 st.set_page_config(page_title="Geospatial AI Assistant", layout="wide")
@@ -34,10 +36,10 @@ if "history" not in st.session_state:
 # Initialize Gemini client
 @st.cache_resource
 def initialize_gemini_client():
-    PROJECT_ID = os.environ.get('PROJECT_ID')  # change to the appropriate project ID
-    REGION = os.environ.get('REGION', 'us-central1')  # change to the appropriate region, if needed
+    PROJECT_ID = "mg-ce-demos"
+    REGION = "us-central1"
     
-    if os.path.exists(os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')):  # ensure GOOGLE_APPLICATION_CREDENTIALS is set if running locally 
+    if os.path.exists(os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')):
         credentials = service_account.Credentials.from_service_account_file(
             os.environ['GOOGLE_APPLICATION_CREDENTIALS'],
             scopes=['https://www.googleapis.com/auth/cloud-platform']
@@ -53,6 +55,129 @@ def initialize_gemini_client():
         client = None
     
     return client
+
+# BigQuery client initialization
+@st.cache_resource
+def initialize_bigquery_client():
+    """Initialize and return a BigQuery client using the same credentials as Gemini."""
+    if os.path.exists(os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')):
+        credentials = service_account.Credentials.from_service_account_file(
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'],
+            scopes=['https://www.googleapis.com/auth/cloud-platform']
+        )
+        client = bigquery.Client(credentials=credentials, project=credentials.project_id)
+        return client
+    else:
+        st.error("Google application credentials not found. Please set the GOOGLE_APPLICATION_CREDENTIALS environment variable.")
+        return None
+
+# Function to fetch and cache US states data from BigQuery
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def get_us_states_from_bigquery():
+    """Fetch US states data from Google BigQuery public dataset."""
+    try:
+        client = initialize_bigquery_client()
+        if not client:
+            st.warning("Using fallback dataset as BigQuery client could not be initialized.")
+            return get_us_states_fallback()
+            
+        # Query to fetch US states data
+        query = """
+        SELECT 
+            geo_id, 
+            state, 
+            state_name, 
+            state_fips_code, 
+            int_point_lat, 
+            int_point_lon,
+            area_land_meters,
+            area_water_meters,
+            ST_AsText(state_geom) as state_geom_wkt
+        FROM 
+            `bigquery-public-data.geo_us_boundaries.states`
+        """
+        
+        # Run the query
+        df = client.query(query).to_dataframe()
+        
+        # Convert WKT geometry to GeoDataFrame
+        geometry = df['state_geom_wkt'].apply(shapely.wkt.loads)
+        gdf = gpd.GeoDataFrame(df, geometry=geometry, crs="EPSG:4326")
+        
+        # Add a value column for visualization
+        gdf['value'] = np.random.randint(1, 100, size=len(gdf))
+        
+        # Cleanup
+        if 'state_geom_wkt' in gdf.columns:
+            gdf = gdf.drop(columns=['state_geom_wkt'])
+            
+        return gdf
+        
+    except Exception as e:
+        st.error(f"Error fetching data from BigQuery: {e}")
+        return get_us_states_fallback()
+
+# Function to fetch and cache US counties data from BigQuery
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def get_us_counties_from_bigquery():
+    """Fetch US counties data from Google BigQuery public dataset."""
+    try:
+        client = initialize_bigquery_client()
+        if not client:
+            st.warning("Using fallback dataset as BigQuery client could not be initialized.")
+            return None
+            
+        # Query to fetch US counties data
+        query = """
+        SELECT 
+            geo_id, 
+            state_fips_code,
+            county_fips_code,
+            county_name,
+            lsad_name,
+            area_land_meters,
+            area_water_meters,
+            int_point_lat, 
+            int_point_lon,
+            ST_AsText(county_geom) as county_geom_wkt
+        FROM 
+            `bigquery-public-data.geo_us_boundaries.counties`
+        """
+        
+        # Run the query
+        df = client.query(query).to_dataframe()
+        
+        # Convert WKT geometry to GeoDataFrame
+        geometry = df['county_geom_wkt'].apply(shapely.wkt.loads)
+        gdf = gpd.GeoDataFrame(df, geometry=geometry, crs="EPSG:4326")
+        
+        # Add a value column for visualization
+        gdf['value'] = np.random.randint(1, 100, size=len(gdf))
+        
+        # Cleanup
+        if 'county_geom_wkt' in gdf.columns:
+            gdf = gdf.drop(columns=['county_geom_wkt'])
+            
+        return gdf
+        
+    except Exception as e:
+        st.error(f"Error fetching county data from BigQuery: {e}")
+        return None
+
+# Fallback function to use if BigQuery connection fails
+def get_us_states_fallback():
+    """Fallback to GeoPandas built-in datasets if BigQuery fails."""
+    try:
+        states = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+        us = states[states['iso_a3'] == 'USA'].copy()
+        us['value'] = np.random.randint(1, 100, size=len(us))
+        us['state_name'] = 'United States'  # Add placeholder state_name
+        us['state'] = 'US'  # Add placeholder state abbreviation
+        us['state_fips_code'] = '00'  # Add placeholder FIPS code
+        return us
+    except Exception as e:
+        st.error(f"Error loading fallback US states: {e}")
+        return None
 
 # Generate content config for JSON output
 def get_generate_content_config():
@@ -95,10 +220,19 @@ def get_gemini_response(prompt, history):
             },
             {
                 "action_type": "highlight_region",
-                "region_name": "Georgia",
-                "region_type": "state",
+                "region_name": "Fulton",
+                "region_type": "county",
+                "state_name": "Georgia",  # Optional, but helpful for counties
                 "color": "red",
                 "fill_color": "orange",
+                "fill_opacity": 0.5
+            },
+            {
+                "action_type": "highlight_region",
+                "region_name": "Georgia",
+                "region_type": "state",
+                "color": "blue",
+                "fill_color": "lightblue",
                 "fill_opacity": 0.5
             },
             {
@@ -136,25 +270,38 @@ def get_gemini_response(prompt, history):
         ]
     }
 
-    Supported region_type values for highlight_region: "state", "country", "continent"
+    Supported region_type values for highlight_region: "state", "county", "country", "continent"
     Supported action_types:
     - add_marker: Add a marker at specified coordinates
-    - highlight_region: Highlight a specific region (state, country, etc)
+    - highlight_region: Highlight a specific region (state, county, country, etc)
     - fit_bounds: Adjust map view to specified bounds
     - add_circle: Add a circle with specified radius
     - add_heatmap: Add a heatmap from data points
     - add_line: Add a line connecting two or more points
     - add_polygon: Add a polygon defined by three or more points
 
-    For state highlighting (like "Highlight Georgia"), use:
+    For state highlighting:
     {
         "action_type": "highlight_region",
-        "region_name": "Georgia",
+        "region_name": "Georgia",  # or "GA"
         "region_type": "state",
         "color": "blue",
         "fill_color": "lightblue",
         "fill_opacity": 0.5
     }
+
+    For county highlighting:
+    {
+        "action_type": "highlight_region",
+        "region_name": "Fulton",
+        "region_type": "county",
+        "state_name": "Georgia",  # Optional but helps disambiguate counties with the same name
+        "color": "red",
+        "fill_color": "pink",
+        "fill_opacity": 0.5
+    }
+
+    The application has detailed US states and counties data including boundaries, FIPS codes, and geographic centers.
 
     Always format your response as valid JSON. For geospatial questions, include relevant map_actions.
     Use concise, clear responses.
@@ -197,23 +344,14 @@ def get_gemini_response(prompt, history):
 
 # Initialize map
 def initialize_map():
-    m = folium.Map(location=[0, 0], zoom_start=2, tiles="OpenStreetMap")
+    m = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="OpenStreetMap")
     return m
 
-# Load US states data with more robust error handling
+# Replace the existing get_us_states function
 @st.cache_data
 def get_us_states():
-    try:
-        # Use GeoPandas' built-in datasets
-        states = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
-        us = states[states['iso_a3'] == 'USA'].copy()
-        # Add a demo value column
-        us['value'] = np.random.randint(1, 100, size=len(us))
-        return us
-    except Exception as e:
-        st.error(f"Error loading US states: {e}")
-        # Create a minimal fallback dataset
-        return None
+    """Get US states data, preferably from BigQuery."""
+    return get_us_states_from_bigquery()
 
 # Load world countries data
 @st.cache_data
@@ -234,16 +372,16 @@ def get_major_cities():
     cities_data = {
         'name': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 
                 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose',
-                'London', 'Paris', 'Tokyo', 'Beijing', 'Mumbai'],
+                'Boston', 'Austin', 'Atlanta', 'Miami', 'Denver'],
         'lat': [40.7128, 34.0522, 41.8781, 29.7604, 33.4484,
                 39.9526, 29.4241, 32.7157, 32.7767, 37.3382,
-                51.5074, 48.8566, 35.6762, 39.9042, 19.0760],
+                42.3601, 30.2672, 33.7490, 25.7617, 39.7392],
         'lon': [-74.0060, -118.2437, -87.6298, -95.3698, -112.0740,
                 -75.1652, -98.4936, -117.1611, -96.7970, -121.8863,
-                -0.1278, 2.3522, 139.6503, 116.4074, 72.8777],
+                -71.0589, -97.7431, -84.3880, -80.1918, -104.9903],
         'population': [8419000, 3980000, 2716000, 2328000, 1680000,
                     1584000, 1547000, 1427000, 1345000, 1031000,
-                    8982000, 2148000, 13960000, 21540000, 12480000]
+                    695000, 978000, 524000, 463000, 716000]
     }
     
     cities = gpd.GeoDataFrame(
@@ -258,10 +396,10 @@ def find_region_by_name(gdf, region_name, column_names=None):
     if gdf is None or len(gdf) == 0:
         return None
         
-    # Define columns to search
+    # Define columns to search - prioritize columns from BigQuery data
     if column_names is None:
         # Try common column names for region names
-        column_names = ['name', 'NAME', 'Name', 'state', 'STATE', 'State', 
+        column_names = ['state_name', 'state', 'county_name', 'name', 'NAME', 'Name', 'STATE', 'State', 
                        'admin', 'ADMIN', 'Admin', 'region', 'REGION', 'Region']
     
     # Ensure we only check columns that exist
@@ -278,15 +416,15 @@ def find_region_by_name(gdf, region_name, column_names=None):
     
     # Try exact match first
     for col in search_columns:
-        match = gdf[gdf[col].str.lower() == region_name.lower()]
-        if len(match) > 0:
-            return match
+        exact_matches = gdf[gdf[col].str.lower() == region_name.lower()]
+        if len(exact_matches) > 0:
+            return exact_matches
     
     # Try contains match
     for col in search_columns:
-        match = gdf[gdf[col].str.lower().str.contains(region_name.lower())]
-        if len(match) > 0:
-            return match
+        partial_matches = gdf[gdf[col].str.lower().str.contains(region_name.lower())]
+        if len(partial_matches) > 0:
+            return partial_matches
     
     # No match found
     return None
@@ -324,6 +462,17 @@ def process_map_actions(actions, m):
             gdf = None
             if region_type.lower() == "state":
                 gdf = get_us_states()
+            elif region_type.lower() == "county":
+                gdf = get_us_counties_from_bigquery()
+                # For counties, we might need to include state in the search
+                state_name = action.get("state_name")
+                if state_name and gdf is not None:
+                    # First filter by state if provided
+                    states = get_us_states()
+                    state = find_region_by_name(states, state_name)
+                    if state is not None:
+                        state_fips = state['state_fips_code'].iloc[0]
+                        gdf = gdf[gdf['state_fips_code'] == state_fips]
             elif region_type.lower() == "country":
                 gdf = get_world_countries()
             elif region_type.lower() == "continent":
@@ -352,8 +501,35 @@ def process_map_actions(actions, m):
             region = find_region_by_name(gdf, region_name)
             
             if region is not None:
-                # Add the GeoJSON for this region
-                folium.GeoJson(
+                # Create a tooltip with region information
+                if region_type.lower() == "state":
+                    # For states, add state-specific information
+                    tooltip_html = f"""
+                    <div style="min-width: 180px;">
+                        <h4>{region['state_name'].iloc[0]}</h4>
+                        <p><b>State Code:</b> {region['state'].iloc[0]}</p>
+                        <p><b>FIPS Code:</b> {region['state_fips_code'].iloc[0]}</p>
+                        <p><b>Land Area:</b> {region['area_land_meters'].iloc[0]/1e6:.2f} sq km</p>
+                        <p><b>Water Area:</b> {region['area_water_meters'].iloc[0]/1e6:.2f} sq km</p>
+                    </div>
+                    """
+                elif region_type.lower() == "county":
+                    # County-specific tooltip
+                    tooltip_html = f"""
+                    <div style="min-width: 180px;">
+                        <h4>{region['county_name'].iloc[0]} {region['lsad_name'].iloc[0]}</h4>
+                        <p><b>State FIPS:</b> {region['state_fips_code'].iloc[0]}</p>
+                        <p><b>County FIPS:</b> {region['county_fips_code'].iloc[0]}</p>
+                        <p><b>Land Area:</b> {region['area_land_meters'].iloc[0]/1e6:.2f} sq km</p>
+                        <p><b>Water Area:</b> {region['area_water_meters'].iloc[0]/1e6:.2f} sq km</p>
+                    </div>
+                    """
+                else:
+                    # Generic tooltip for other region types
+                    tooltip_html = f"<div><h4>{region_name}</h4></div>"
+                
+                # Add the GeoJSON for this region with tooltip
+                geo_layer = folium.GeoJson(
                     region.__geo_interface__,
                     name=f"{region_name}",
                     style_function=lambda x: {
@@ -361,7 +537,8 @@ def process_map_actions(actions, m):
                         'color': action.get("color", "black"),
                         'weight': 2,
                         'fillOpacity': action.get("fill_opacity", 0.5)
-                    }
+                    },
+                    tooltip=folium.Tooltip(tooltip_html)
                 ).add_to(m)
                 
                 # Fit bounds to this region
@@ -493,6 +670,9 @@ with col2:
 with st.sidebar:
     st.header("Settings")
     
+    # Data source info
+    st.info("Using US States and Counties data from Google BigQuery public datasets.")
+    
     if st.button("Clear Chat"):
         st.session_state.messages = []
         st.session_state.map_actions = []
@@ -512,11 +692,11 @@ with st.sidebar:
     st.header("Example Questions")
     examples = [
         "Show me the 10 largest cities in the United States",
-        "Highlight Georgia on the map",
+        "Highlight Fulton County, Georgia on the map",
+        "Which state has the largest land area?",
         "Draw a line connecting New York and Los Angeles",
-        "Create a polygon around the Great Lakes region",
-        "Show me the distance between Chicago and Miami",
-        "Highlight the continent of Asia"
+        "Compare the land area of Travis County, TX and King County, WA",
+        "Show all counties in Florida"
     ]
     
     for example in examples:
