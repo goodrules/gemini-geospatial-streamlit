@@ -6,3 +6,4 @@
 - how will we eventually create the logic and display how data will interact?  e.g. if a user asks about potential damage in the next 5 days, the model and app will have to cross weathernext data with asset data, understand damaging weather and the implications on specific locations of the user data
 - improve drawing of polygons
 - improve heatmapping and polygon fill-in 
+- some of the built-in datasets aren't loading, may need to install them separately?  

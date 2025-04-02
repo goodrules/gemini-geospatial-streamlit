@@ -34,10 +34,10 @@ if "history" not in st.session_state:
 # Initialize Gemini client
 @st.cache_resource
 def initialize_gemini_client():
-    PROJECT_ID = "mg-ce-demos"
-    REGION = "us-central1"
+    PROJECT_ID = os.environ.get('PROJECT_ID')  # change to the appropriate project ID
+    REGION = os.environ.get('REGION', 'us-central1')  # change to the appropriate region, if needed
     
-    if os.path.exists(os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')):
+    if os.path.exists(os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')):  # ensure GOOGLE_APPLICATION_CREDENTIALS is set if running locally 
         credentials = service_account.Credentials.from_service_account_file(
             os.environ['GOOGLE_APPLICATION_CREDENTIALS'],
             scopes=['https://www.googleapis.com/auth/cloud-platform']
