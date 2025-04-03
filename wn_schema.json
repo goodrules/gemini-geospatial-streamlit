@@ -1,0 +1,626 @@
+[
+  {
+    "name": "init_time",
+    "mode": "NULLABLE",
+    "type": "TIMESTAMP",
+    "description": "",
+    "fields": []
+  },
+  {
+    "name": "geography",
+    "mode": "NULLABLE",
+    "type": "GEOGRAPHY",
+    "description": "",
+    "fields": []
+  },
+  {
+    "name": "geography_polygon",
+    "mode": "NULLABLE",
+    "type": "GEOGRAPHY",
+    "description": "",
+    "fields": []
+  },
+  {
+    "name": "forecast",
+    "mode": "REPEATED",
+    "type": "RECORD",
+    "description": "",
+    "fields": [
+      {
+        "name": "time",
+        "mode": "NULLABLE",
+        "type": "TIMESTAMP",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "hours",
+        "mode": "NULLABLE",
+        "type": "INTEGER",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "total_precipitation_6hr",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "10m_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "10m_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "2m_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "mean_sea_level_pressure",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "50_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "100_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "150_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "200_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "250_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "300_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "400_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "500_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "600_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "700_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "850_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "925_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "1000_geopotential",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "50_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "100_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "150_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "200_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "250_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "300_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "400_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "500_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "600_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "700_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "850_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "925_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "1000_specific_humidity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "50_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "100_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "150_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "200_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "250_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "300_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "400_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "500_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "600_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "700_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "850_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "925_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "1000_temperature",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "50_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "100_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "150_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "200_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "250_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "300_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "400_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "500_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "600_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "700_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "850_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "925_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "1000_u_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "50_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "100_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "150_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "200_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "250_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "300_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "400_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "500_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "600_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "700_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "850_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "925_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "1000_v_component_of_wind",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "50_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "100_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "150_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "200_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "250_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "300_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "400_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "500_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "600_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "700_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "850_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "925_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      },
+      {
+        "name": "1000_vertical_velocity",
+        "mode": "NULLABLE",
+        "type": "FLOAT",
+        "description": "",
+        "fields": []
+      }
+    ]
+  }
+]
