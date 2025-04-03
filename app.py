@@ -1,6 +1,7 @@
 import os
 import json
 import streamlit as st
+from streamlit_chat import message # not using yet, will use for chat UI enhancements
 import folium
 import geopandas as gpd
 from streamlit_folium import st_folium
@@ -387,7 +388,47 @@ def get_gemini_response(prompt, history):
                 "fill_color": "pink",
                 "fill_opacity": 0.5
             }
-        ]
+        ],
+        "data": {
+            # Include structured data related to the query that doesn't map to visual elements
+            # Example for county population query:
+            "region_info": {
+                "name": "Fulton County",
+                "state": "Georgia",
+                "population": 1063937,
+                "area_sq_km": 1385.2,
+                "population_density": 768.5,
+                "median_income": 64400
+            },
+            # Example for comparing multiple regions:
+            "comparison": [
+                {
+                    "name": "Travis County",
+                    "state": "Texas",
+                    "area_sq_km": 2647.5,
+                    "population": 1290188
+                },
+                {
+                    "name": "King County",
+                    "state": "Washington",
+                    "area_sq_km": 5480.1,
+                    "population": 2269675
+                }
+            ],
+            # Example for statistics:
+            "statistics": {
+                "highest_value": {
+                    "name": "Alaska",
+                    "value": 1723337
+                },
+                "lowest_value": {
+                    "name": "Rhode Island", 
+                    "value": 2706
+                },
+                "average": 268596,
+                "median": 145753
+            }
+        }
     }
 
     Supported region_type values for highlight_region: "state", "county", "zipcode", "country", "continent"
@@ -399,6 +440,13 @@ def get_gemini_response(prompt, history):
     - add_heatmap: Add a heatmap from data points
     - add_line: Add a line connecting two or more points
     - add_polygon: Add a polygon defined by three or more points
+
+    The "data" field is optional but should be used when you have structured information to present that doesn't directly translate to map actions. This can include:
+    - Demographic data (population, income, etc.)
+    - Statistical comparisons between regions
+    - Historical or time-series data
+    - Economic indicators
+    - Any other structured data that enhances your response
 
     For state highlighting:
     {
@@ -435,7 +483,7 @@ def get_gemini_response(prompt, history):
 
     The application has detailed US states and counties data including boundaries, FIPS codes, and geographic centers.
 
-    Always format your response as valid JSON. For geospatial questions, include relevant map_actions.
+    Always format your response as valid JSON. For geospatial questions, include relevant map_actions and data when appropriate.
     Use concise, clear responses.
     """
     
@@ -834,16 +882,43 @@ with col1:
                 response_data = json.loads(raw_response)
                 ai_message = response_data.get("response", "Sorry, I couldn't process that request.")
                 map_actions = response_data.get("map_actions", [])
+                additional_data = response_data.get("data", None)
                 
                 # Update map actions in session state
                 st.session_state.map_actions = map_actions
                 
+                # Store additional data in session state if present
+                if additional_data:
+                    st.session_state.additional_data = additional_data
+                else:
+                    if "additional_data" in st.session_state:
+                        del st.session_state.additional_data
+                        
             except json.JSONDecodeError:
                 ai_message = "I encountered an error processing your request. Please try again."
         
         # Display AI response
         with st.chat_message("assistant"):
             st.write(ai_message)
+            
+            # Display structured data if available
+            if "additional_data" in st.session_state and st.session_state.additional_data:
+                st.subheader("Data")
+                
+                # Handle different types of data
+                data = st.session_state.additional_data
+                
+                if "region_info" in data:
+                    st.write("### Region Information")
+                    st.json(data["region_info"])
+                    
+                if "comparison" in data:
+                    st.write("### Region Comparison")
+                    st.dataframe(pd.DataFrame(data["comparison"]))
+                    
+                if "statistics" in data:
+                    st.write("### Statistics")
+                    st.json(data["statistics"])
         
         # Add AI message to chat history
         st.session_state.messages.append({"role": "assistant", "content": ai_message})

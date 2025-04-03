@@ -31,7 +31,7 @@ A Python-based interactive geospatial analysis application that combines the pow
 
 2. **Install dependencies**:
    ```
-   pip install streamlit folium geopandas streamlit-folium google-cloud-aiplatform numpy pandas
+   pip install streamlit folium geopandas streamlit-folium google-cloud-aiplatform numpy pandas google-genai
    ```
 
 3. **Set up Google Cloud credentials**:
