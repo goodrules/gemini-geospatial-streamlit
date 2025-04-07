@@ -31,13 +31,33 @@ A Python-based interactive geospatial analysis application that combines the pow
 
 2. **Install dependencies**:
    ```
-   pip install streamlit folium geopandas streamlit-folium google-cloud-aiplatform numpy pandas google-genai
+   pip install -r requirements.txt
    ```
 
 3. **Set up Google Cloud credentials**:
-   ```
-   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/credentials.json"
-   ```
+   
+   a. **Install Google Cloud SDK**:
+   - Download and install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+   - Run `gcloud init` to initialize the SDK
+   
+   b. **Set up Application Default Credentials**:
+   - Run the following command:
+      ```
+      gcloud auth application-default login` to set up your user credentials
+      ```
+   - This will open a browser window where you can sign in with your Google account
+   - Alternatively, if using a service account:
+     ```
+     export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
+     ```
+
+1. **Set up environment variables**:
+   - Create a `.env` file in the project root directory
+   - Add the following variables:
+     ```
+     GOOGLE_CLOUD_PROJECT=your-project-id
+     REGION=your-gcp-region
+     ```
 
 ## Usage
 
@@ -73,14 +93,47 @@ The application uses Google's Gemini model to interpret natural language queries
 
 ## Project Structure
 
-- `app.py`: Main application file containing all code
-- Functionality is organized into modular functions:
-  - Data handling: `get_us_states()`, `get_world_countries()`, `get_major_cities()`
-  - AI interaction: `initialize_gemini_client()`, `get_gemini_response()`
-  - Map processing: `process_map_actions()`, `find_region_by_name()`
-  - UI components: Streamlit layout and interactions
+The application has been refactored into a modular structure:
+
+- `app.py`: Main application entry point that initializes components and manages layout
+- `config/`: Configuration files and settings
+  - `settings.py`: Application settings, constants, and session state initialization
+  - `credentials.py`: Handles Google Cloud credentials
+- `data/`: Data loading and processing modules
+  - `bigquery_client.py`: BigQuery client initialization and query execution
+  - `geospatial_data.py`: Functions for loading and processing geospatial data 
+  - `fallback_data.py`: Fallback data sources when BigQuery is unavailable
+- `components/`: UI components and Streamlit widgets
+  - `sidebar.py`: Sidebar UI elements and example queries
+  - `chat.py`: Chat interface components and message display
+  - `map.py`: Map display and interaction
+- `services/`: Business logic and external services
+  - `gemini_service.py`: Gemini AI API interaction
+  - `map_processor.py`: Processes map actions from AI responses
+- `utils/`: Utility functions
+  - `geo_utils.py`: Geospatial utility functions
+  - `streamlit_utils.py`: Streamlit-specific helper functions
+
+## Caching and Cache Management
+
+The application uses Streamlit's caching mechanism to improve performance. Here are some common scenarios when you might need to clear the cache:
+
+1. **After Code Changes**: When you modify functions decorated with `@st.cache_data` or `@st.cache_resource`, you'll need to clear the cache to see the changes take effect.
+
+2. **Data Updates**: If your underlying data sources have changed but the cached results are still being used.
+
+3. **Memory Management**: If you notice high memory usage from accumulated cached results.
+
+To clear the cache, you can:
+
+1. **Use the UI**: Click the "Clear cache" button in the Streamlit app's hamburger menu (☰).
+
+2. **During Development**: Press 'C' while the app is running to clear the cache.
+
+Remember that cached values are available to all users of your app. If you need to save results that should only be accessible within a session, use Session State instead.
 
 ## Notes
 
 - The application uses GeoPandas' built-in natural earth datasets, which might be deprecated in future versions
 - For production use, consider downloading and storing required geodata files locally
+
