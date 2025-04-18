@@ -27,6 +27,11 @@ def init_session_state():
         st.session_state.counties_loaded = False
     if "zipcodes_loaded" not in st.session_state:
         st.session_state.zipcodes_loaded = False
+    # Add new state variables for local datasets
+    if "flood_zones_loaded" not in st.session_state:
+        st.session_state.flood_zones_loaded = False
+    if "power_lines_loaded" not in st.session_state:
+        st.session_state.power_lines_loaded = False
     if "history" not in st.session_state:
         st.session_state.history = [
             types.Content(
@@ -37,4 +42,4 @@ def init_session_state():
                 role="model",
                 parts=[types.Part.from_text(text="""{"response": "Hello! I'm your geospatial assistant. I can help with location analysis, mapping, and spatial queries. What would you like to explore today?", "map_actions": []}""")]
             ),
-        ] 
+        ]

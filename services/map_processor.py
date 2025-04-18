@@ -1,7 +1,11 @@
 import folium
 import streamlit as st
+import pandas as pd
+import json
 from folium.plugins import HeatMap
 from data.geospatial_data import get_us_states, get_us_counties, get_us_zipcodes
+from data.geospatial_data import (get_us_states, get_us_counties, get_us_zipcodes,
+                                 get_crawford_flood_zones, get_pa_power_lines)
 from utils.geo_utils import find_region_by_name, get_world_countries, get_major_cities
 from utils.streamlit_utils import create_tooltip_html
 
@@ -9,6 +13,17 @@ def initialize_map():
     """Initialize a base Folium map centered on the United States"""
     m = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="OpenStreetMap")
     return m
+
+# Serialize GeoDataFrame objects
+def serialize_geojson(gdf):
+    """Convert GeoDataFrame to properly serialized GeoJSON"""
+    # First convert any timestamp columns to strings
+    for col in gdf.columns:
+        if pd.api.types.is_datetime64_any_dtype(gdf[col]):
+            gdf[col] = gdf[col].astype(str)
+    
+    # Use to_json with default serializer for dates
+    return json.loads(gdf.to_json())
 
 def process_map_actions(actions, m):
     """Process map actions from AI responses and apply them to the map"""
@@ -95,6 +110,10 @@ def process_map_actions(actions, m):
                     all_bounds.append([bounds[1], bounds[0]])  # SW corner
                     all_bounds.append([bounds[3], bounds[2]])  # NE corner
                 continue
+            elif region_type.lower() == "flood_zone":
+                gdf = get_crawford_flood_zones()
+            elif region_type.lower() == "power_line":
+                gdf = get_pa_power_lines()
             
             # Find the region
             region = find_region_by_name(gdf, region_name)
@@ -103,14 +122,19 @@ def process_map_actions(actions, m):
                 # Create a tooltip with region information
                 tooltip_html = create_tooltip_html(region, region_type)
                 
+                # Convert timestamps to strings to avoid serialization issues
+                for col in region.columns:
+                    if pd.api.types.is_datetime64_any_dtype(region[col]):
+                        region[col] = region[col].astype(str)
+                
                 # Add the GeoJSON for this region with tooltip
                 geo_layer = folium.GeoJson(
-                    region.__geo_interface__,
+                    json.loads(region.to_json()),
                     name=f"{region_name}",
                     style_function=lambda x: {
                         'fillColor': action.get("fill_color", "#ff7800"),
                         'color': action.get("color", "black"),
-                        'weight': 2,
+                        'weight': action.get("weight", 2),
                         'fillOpacity': action.get("fill_opacity", 0.5)
                     },
                     tooltip=folium.Tooltip(tooltip_html)
@@ -129,6 +153,62 @@ def process_map_actions(actions, m):
             if bounds and isinstance(bounds, list) and len(bounds) == 2:
                 m.fit_bounds(bounds)  # Apply explicit bounds
                 return m  # Return immediately with explicit bounds
+        
+        elif action_type == "show_local_dataset":
+            # New action type for directly displaying a full local dataset
+            dataset_name = action.get("dataset_name", "").lower()
+            
+            if dataset_name == "flood_zones" or dataset_name == "crawford_flood_zones":
+                gdf = get_crawford_flood_zones()
+                layer_name = "Crawford County Flood Zones"
+                default_color = "#0066cc"  # Blue for flood zones
+                fill_color = "#99ccff"    # Light blue fill
+            elif dataset_name == "power_lines" or dataset_name == "pa_power_lines":
+                gdf = get_pa_power_lines()
+                layer_name = "PA Power Lines"
+                default_color = "#0066cc"  # Blue for power lines
+                fill_color = "#ffff00"    # Yellow fill
+            else:
+                st.warning(f"Unknown local dataset: {dataset_name}")
+                continue
+                
+            if gdf is not None:
+                # Convert timestamps to strings to avoid serialization issues
+                for col in gdf.columns:
+                    if pd.api.types.is_datetime64_any_dtype(gdf[col]):
+                        gdf[col] = gdf[col].astype(str)
+                
+                # Create a tooltip with dataset information
+                first_col = gdf.columns[0] if len(gdf.columns) > 0 else None
+                tooltip_fields = action.get("tooltip_fields", [first_col]) if first_col else []
+                tooltip_aliases = action.get("tooltip_aliases", tooltip_fields)
+                
+                # Use tooltip if fields are available
+                tooltip = None
+                if tooltip_fields:
+                    tooltip = folium.GeoJsonTooltip(
+                        fields=tooltip_fields,
+                        aliases=tooltip_aliases,
+                        sticky=True
+                    )
+                
+                # Add the GeoJSON for this dataset with tooltip
+                geo_layer = folium.GeoJson(
+                    json.loads(gdf.to_json()),
+                    name=layer_name,
+                    style_function=lambda x: {
+                        'fillColor': action.get("fill_color", fill_color),
+                        'color': action.get("color", default_color),
+                        'weight': action.get("weight", 4),  # Thicker lines by default
+                        'fillOpacity': action.get("fill_opacity", 0.5)
+                    },
+                    tooltip=tooltip
+                ).add_to(m)
+                
+                # Add dataset bounds to all_bounds list
+                bounds = gdf.total_bounds
+                all_bounds.append([bounds[1], bounds[0]])  # SW corner
+                all_bounds.append([bounds[3], bounds[2]])  # NE corner
                 
         elif action_type == "add_circle":
             lat = action.get("lat")
@@ -211,4 +291,4 @@ def process_map_actions(actions, m):
             except Exception as e:
                 st.error(f"Error fitting bounds: {e}")
     
-    return m 
+    return m

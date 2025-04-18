@@ -94,6 +94,16 @@ def get_system_prompt():
                 "color": "red",
                 "fill_color": "pink",
                 "fill_opacity": 0.5
+            },
+            {
+                "action_type": "show_local_dataset",
+                "dataset_name": "flood_zones",  # Either "flood_zones" or "power_lines"
+                "color": "#0066cc",  # Blue for lines (thicker by default)
+                "weight": 4,         # Line thickness
+                "fill_color": "#99ccff",  # Fill color for polygons
+                "fill_opacity": 0.5,
+                "tooltip_fields": ["FIELD1", "FIELD2"],  # Optional fields for tooltip
+                "tooltip_aliases": ["Name", "Value"]     # Optional display names for fields
             }
         ],
         "data": {
@@ -138,7 +148,8 @@ def get_system_prompt():
         }
     }
 
-    Supported region_type values for highlight_region: "state", "county", "zipcode", "country", "continent"
+    Supported region_type values for highlight_region: "state", "county", "zipcode", "country", "continent", "flood_zone", "power_line"
+    
     Supported action_types:
     - add_marker: Add a marker at specified coordinates
     - highlight_region: Highlight a specific region (state, county, country, etc)
@@ -147,6 +158,39 @@ def get_system_prompt():
     - add_heatmap: Add a heatmap from data points
     - add_line: Add a line connecting two or more points
     - add_polygon: Add a polygon defined by three or more points
+    - show_local_dataset: Display a complete local dataset (flood_zones or power_lines)
+
+    IMPORTANT: When users ask about flood zones, flood maps, flooding areas, or flood risks in Crawford County, 
+    use the "show_local_dataset" action with "dataset_name": "flood_zones". For example:
+    {
+        "response": "Here are the flood zones in Crawford County. The blue areas represent potential flooding areas.",
+        "map_actions": [
+            {
+                "action_type": "show_local_dataset",
+                "dataset_name": "flood_zones",
+                "color": "#0066cc",
+                "weight": 4,
+                "fill_color": "#99ccff",
+                "fill_opacity": 0.5
+            }
+        ]
+    }
+
+    IMPORTANT: When users ask about power lines, electricity infrastructure, transmission lines, or utility lines, 
+    use the "show_local_dataset" action with "dataset_name": "power_lines". For example:
+    {
+        "response": "Here are the power lines in Pennsylvania. The blue lines represent the electrical transmission network.",
+        "map_actions": [
+            {
+                "action_type": "show_local_dataset",
+                "dataset_name": "power_lines",
+                "color": "#0066cc",
+                "weight": 4,
+                "fill_color": "#ffff00",
+                "fill_opacity": 0.5
+            }
+        ]
+    }
 
     The "data" field is optional but should be used when you have structured information to present that doesn't directly translate to map actions. This can include:
     - Demographic data (population, income, etc.)
