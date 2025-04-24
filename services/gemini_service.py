@@ -174,6 +174,7 @@ def get_system_prompt():
     - "add_polygon": Add a polygon defined by three or more points
     - "show_local_dataset": Display a complete local dataset (flood_zones or power_lines)
     - "show_weather": Display weather forecast data for Pennsylvania
+    - "analyze_wind_risk": Analyze and display areas where power lines may be at risk from high winds
 
     IMPORTANT: Multiple map actions can be output.
 
@@ -205,6 +206,19 @@ def get_system_prompt():
                 "weight": 4,
                 "fill_color": "#ffff00",
                 "fill_opacity": 0.5
+            }
+        ]
+    }
+    
+    IMPORTANT: When users ask about risk to power lines from high winds, potential power outages due to storms,
+    or if power lines are at risk of damage from weather, use the "analyze_wind_risk" action. For example:
+    {
+        "response": "I've analyzed whether any power lines in Pennsylvania are at risk from high winds in the forecast period. High winds over 16 m/s can potentially damage power infrastructure.",
+        "map_actions": [
+            {
+                "action_type": "analyze_wind_risk",
+                "wind_threshold": 16.0,
+                "forecast_days": 10
             }
         ]
     }
@@ -275,6 +289,18 @@ def get_system_prompt():
                 "action_type": "show_weather",
                 "parameter": "precipitation",
                 "forecast_date": "12-20-2022"
+            }
+        ]
+    }
+    
+    For power line risk assessment:
+    {
+        "response": "I've analyzed the forecast data and found areas where power lines may be at risk from high winds in the next 10 days.",
+        "map_actions": [
+            {
+                "action_type": "analyze_wind_risk",
+                "wind_threshold": 16.0,        # Wind speed threshold in m/s (>= 16 m/s is considered dangerous)
+                "forecast_days": 10            # Number of days to look ahead
             }
         ]
     }

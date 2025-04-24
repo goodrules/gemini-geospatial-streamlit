@@ -157,6 +157,14 @@ def get_weather_color_scale(parameter, min_val, max_val):
             vmin=min_val,
             vmax=max_val,  # Adjust based on actual wind speed values
         )
+    elif parameter == "wind_risk":
+        # Wind risk color scale (special scale for risk assessment)
+        # Orange-red scale to indicate severity
+        return LinearColormap(
+            ['#fee8c8', '#fdbb84', '#e34a33'], 
+            vmin=0,
+            vmax=100,  # Risk percentage 
+        )
     else:
         # Default color scale
         return LinearColormap(
@@ -164,6 +172,99 @@ def get_weather_color_scale(parameter, min_val, max_val):
             vmin=0,
             vmax=100,
         )
+
+def analyze_wind_risk(weather_gdf, power_lines_gdf, wind_threshold=16.0):
+    """
+    Analyze risk to power lines from high winds
+    
+    Args:
+        weather_gdf: GeoDataFrame with weather forecast data
+        power_lines_gdf: GeoDataFrame with power line geometries
+        wind_threshold: Wind speed threshold in m/s (default: 16.0 m/s)
+        
+    Returns:
+        risk_gdf: GeoDataFrame with risk assessment data
+        summary: Dictionary with risk summary information
+    """
+    try:
+        # 1. Filter weather data for high winds
+        high_wind_areas = weather_gdf[weather_gdf['wind_speed'] >= wind_threshold].copy()
+        
+        if high_wind_areas.empty:
+            return None, {
+                "risk_found": False,
+                "message": f"No areas with wind speeds over {wind_threshold} m/s found in the forecast period."
+            }
+            
+        # 2. Prepare power lines data
+        if power_lines_gdf is None:
+            power_lines_gdf = get_pa_power_lines()
+            
+        if power_lines_gdf is None or power_lines_gdf.empty:
+            return high_wind_areas, {
+                "risk_found": True,
+                "message": f"Found {len(high_wind_areas)} areas with high winds, but no power line data available for risk assessment.",
+                "high_wind_areas": len(high_wind_areas),
+                "affected_dates": sorted(high_wind_areas['forecast_date'].unique().tolist()),
+                "max_wind_speed": high_wind_areas['wind_speed'].max()
+            }
+            
+        # 3. Create a buffer around power lines (approximately 1km buffer)
+        # Convert to a projected CRS for accurate buffering
+        power_lines_proj = power_lines_gdf.to_crs("EPSG:3857")  # Web Mercator
+        buffered_lines = power_lines_proj.buffer(1000)  # 1km buffer
+        buffered_lines_gdf = gpd.GeoDataFrame(power_lines_gdf, geometry=buffered_lines)
+        buffered_lines_gdf = buffered_lines_gdf.to_crs("EPSG:4326")  # Back to WGS84
+        
+        # 4. Perform spatial join to find intersections
+        # Convert high wind areas to same CRS
+        high_wind_areas_proj = high_wind_areas.to_crs("EPSG:4326")
+        
+        # Perform spatial join - find where high winds intersect with power line buffers
+        risk_areas = gpd.sjoin(high_wind_areas_proj, buffered_lines_gdf, how="inner", predicate="intersects")
+        
+        if risk_areas.empty:
+            return high_wind_areas, {
+                "risk_found": True,
+                "message": f"Found {len(high_wind_areas)} areas with high winds, but none affect power lines.",
+                "high_wind_areas": len(high_wind_areas),
+                "affected_dates": sorted(high_wind_areas['forecast_date'].unique().tolist()),
+                "max_wind_speed": high_wind_areas['wind_speed'].max()
+            }
+                   
+        # 5. Calculate risk metrics
+        # Add a risk score - proportion of max wind speed over threshold
+        max_possible_wind = high_wind_areas['wind_speed'].max()  # Highest wind in forecast
+        risk_areas['risk_score'] = ((risk_areas['wind_speed'] - wind_threshold) / 
+                                    (max_possible_wind - wind_threshold) * 100)
+        
+        # Ensure risk score is between 0-100
+        risk_areas['risk_score'] = risk_areas['risk_score'].clip(0, 100)
+        
+        # 6. Prepare summary information
+        affected_km = len(risk_areas) * 0.25  # Rough estimate: each grid cell is ~0.25 km²
+        affected_dates = sorted(risk_areas['forecast_date'].unique().tolist())
+        max_risk_date = risk_areas.loc[risk_areas['wind_speed'].idxmax(), 'forecast_date']
+        max_wind = risk_areas['wind_speed'].max()
+        
+        summary = {
+            "risk_found": True,
+            "message": f"Found {len(risk_areas)} areas where power lines are at risk from high winds.",
+            "affected_power_lines_km": affected_km,
+            "affected_dates": affected_dates,
+            "highest_risk_date": max_risk_date,
+            "max_wind_speed": max_wind,
+            "risk_areas_count": len(risk_areas)
+        }
+        
+        return risk_areas, summary
+        
+    except Exception as e:
+        st.error(f"Error analyzing wind risk: {str(e)}")
+        return None, {
+            "risk_found": False,
+            "message": f"Error analyzing wind risk: {str(e)}"
+        }
 
 def process_map_actions(actions, m):
     """Process map actions from AI responses and apply them to the map"""
@@ -559,6 +660,174 @@ def process_map_actions(actions, m):
                 st.error(f"Error displaying weather data: {e}")
                 continue
         
+        elif action_type == "analyze_wind_risk":
+            # This action analyzes wind risk to power lines
+            
+            # Parameters for risk analysis
+            wind_threshold = action.get("wind_threshold", 16.0)  # Default 16 m/s
+            dates = action.get("dates", [])  # Optional list of specific dates to check
+            forecast_days = action.get("forecast_days", 10)  # Number of days to check
+            
+            try:
+                # 1. Get weather forecast data
+                weather_df = get_weather_forecast_data()
+                
+                if weather_df is None or weather_df.empty:
+                    st.warning("No weather data available for risk analysis")
+                    continue
+                    
+                # 2. Filter by dates if specified
+                if dates and isinstance(dates, list) and len(dates) > 0:
+                    weather_df = weather_df[weather_df["forecast_date"].isin(dates)]
+                else:
+                    # Use all available dates within forecast_days
+                    all_dates = sorted(weather_df["forecast_date"].unique().tolist())
+                    # Use first date as reference (init_date)
+                    base_date = all_dates[0] if all_dates else None
+                    
+                    if base_date is not None and len(all_dates) > 1:
+                        # Get dates within the forecast period
+                        dates_to_use = all_dates[:min(forecast_days, len(all_dates))]
+                        weather_df = weather_df[weather_df["forecast_date"].isin(dates_to_use)]
+                
+                if weather_df.empty:
+                    st.warning("No weather data available for the specified dates")
+                    continue
+                
+                # 3. Convert to GeoDataFrame
+                geometries = []
+                for _, row in weather_df.iterrows():
+                    # Parse GeoJSON polygon string
+                    try:
+                        geojson = json.loads(row['geography_polygon'])
+                        polygon = shape(geojson)
+                        geometries.append(polygon)
+                    except Exception as e:
+                        st.error(f"Error parsing polygon: {e}")
+                        continue
+                
+                # Create GeoDataFrame with weather data
+                weather_gdf = gpd.GeoDataFrame(
+                    weather_df,
+                    geometry=geometries,
+                    crs="EPSG:4326"
+                )
+                
+                # 4. Get power lines data
+                power_lines_gdf = get_pa_power_lines()
+                
+                # 5. Analyze wind risk
+                st.info(f"Analyzing wind risk to power lines (threshold: {wind_threshold} m/s)...")
+                risk_gdf, risk_summary = analyze_wind_risk(
+                    weather_gdf, 
+                    power_lines_gdf, 
+                    wind_threshold
+                )
+                
+                # 6. Display risk summary
+                if risk_summary["risk_found"]:
+                    if "affected_power_lines_km" in risk_summary:
+                        message = f"""
+                        ## Power Line Risk Assessment
+                        
+                        {risk_summary["message"]}
+                        
+                        - **Affected Power Lines:** ~{risk_summary["affected_power_lines_km"]:.1f} km
+                        - **Highest Risk Date:** {risk_summary["highest_risk_date"]}
+                        - **Maximum Wind Speed:** {risk_summary["max_wind_speed"]:.1f} m/s
+                        """
+                    else:
+                        message = f"""
+                        ## Wind Risk Assessment
+                        
+                        {risk_summary["message"]}
+                        
+                        - **High Wind Areas:** {risk_summary["high_wind_areas"]}
+                        - **Affected Dates:** {', '.join(risk_summary["affected_dates"])}
+                        - **Maximum Wind Speed:** {risk_summary["max_wind_speed"]:.1f} m/s
+                        """
+                    
+                    st.markdown(message)
+                    
+                    # 7. Visualize risk areas if found
+                    if risk_gdf is not None and not risk_gdf.empty:
+                        # Add power lines layer
+                        if power_lines_gdf is not None:
+                            folium.GeoJson(
+                                json.loads(power_lines_gdf.to_json()),
+                                name="Power Lines",
+                                style_function=lambda x: {
+                                    'color': '#0066cc',
+                                    'weight': 2,
+                                    'opacity': 0.8
+                                }
+                            ).add_to(m)
+                        
+                        # Create color scale for risk visualization
+                        if 'risk_score' in risk_gdf.columns:
+                            risk_colormap = LinearColormap(
+                                ['#fee8c8', '#fdbb84', '#e34a33'],
+                                vmin=0,
+                                vmax=100,
+                                caption="Wind Risk Level"
+                            )
+                            
+                            # Style function based on risk score
+                            def risk_style(feature):
+                                risk = feature['properties'].get('risk_score', 0)
+                                return {
+                                    'fillColor': risk_colormap(risk),
+                                    'color': 'black',
+                                    'weight': 1,
+                                    'fillOpacity': 0.7
+                                }
+                                
+                            # Add risk areas to map
+                            risk_layer = folium.GeoJson(
+                                json.loads(risk_gdf.to_json()),
+                                name="High Wind Risk Areas",
+                                style_function=risk_style,
+                                tooltip=folium.GeoJsonTooltip(
+                                    fields=['forecast_date', 'wind_speed', 'risk_score'],
+                                    aliases=['Date', 'Wind Speed (m/s)', 'Risk Score'],
+                                    localize=True,
+                                    sticky=True
+                                )
+                            ).add_to(m)
+                            
+                            # Add colormap to map
+                            risk_colormap.add_to(m)
+                        else:
+                            # Basic styling for high wind areas
+                            folium.GeoJson(
+                                json.loads(risk_gdf.to_json()),
+                                name="High Wind Areas",
+                                style_function=lambda x: {
+                                    'fillColor': '#e34a33',
+                                    'color': 'black',
+                                    'weight': 1,
+                                    'fillOpacity': 0.5
+                                },
+                                tooltip=folium.GeoJsonTooltip(
+                                    fields=['forecast_date', 'wind_speed'],
+                                    aliases=['Date', 'Wind Speed (m/s)'],
+                                    localize=True,
+                                    sticky=True
+                                )
+                            ).add_to(m)
+                        
+                        # Add bounds to all_bounds list
+                        bounds = risk_gdf.total_bounds
+                        all_bounds.append([bounds[1], bounds[0]])  # SW corner
+                        all_bounds.append([bounds[3], bounds[2]])  # NE corner
+                    
+                else:
+                    st.info(risk_summary["message"])
+                
+            except Exception as e:
+                st.error(f"Error analyzing wind risk: {str(e)}")
+                
+                
         elif action_type == "show_local_dataset":
             # New action type for directly displaying a full local dataset
             dataset_name = action.get("dataset_name", "").lower()
