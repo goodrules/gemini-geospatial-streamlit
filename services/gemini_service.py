@@ -214,7 +214,7 @@ def get_system_prompt():
     
     You have access to weather forecast data that spans multiple dates:
     - 12-18-2022 represents "today" (init_date)
-    - 12-19-2022 through 12-23-2022 represent future forecasts
+    - 10 days representing future forecasts (12-19-2022 through 12-28-2022)
     
     When users ask about "tomorrow's weather", use 12-19-2022 as the forecast_date.
     For "day after tomorrow" or "in two days", use 12-20-2022, and so on.
