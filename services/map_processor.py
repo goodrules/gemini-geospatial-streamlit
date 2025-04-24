@@ -66,31 +66,31 @@ def create_weather_tooltip(properties, parameter):
     tooltip_html += "</div>"
     return tooltip_html
 
-def get_weather_color_scale(parameter):
+def get_weather_color_scale(parameter, min_val, max_val):
     """Define color scales for different weather parameters"""
     if parameter == "temperature":
         # Temperature color scale (Kelvin values)
         # Colors from cool blue to hot red
         return LinearColormap(
             ['#0000ff', '#00ffff', '#00ff00', '#ffff00', '#ff0000'],
-            vmin=265,  # ~15°F
-            vmax=285,  # ~55°F
+            vmin=min_val,  # ~15°F
+            vmax=max_val,  # ~55°F
         )
     elif parameter == "precipitation":
         # Precipitation color scale (mm)
         # Colors from white/pale blue (low) to dark blue (high)
         return LinearColormap(
             ['#ffffff', '#c6dbef', '#9ecae1', '#6baed6', '#3182bd', '#08519c'],
-            vmin=0,
-            vmax=0.001,  # Adjust based on actual precipitation values
+            vmin=min_val,
+            vmax=max_val,  # Adjust based on actual precipitation values
         )
     elif parameter == "wind_speed":
         # Wind speed color scale (m/s)
         # Colors from white/pale green (low) to dark green (high)
         return LinearColormap(
             ['#ffffff', '#c7e9c0', '#a1d99b', '#74c476', '#31a354', '#006d2c'],
-            vmin=0,
-            vmax=10,  # Adjust based on actual wind speed values
+            vmin=min_val,
+            vmax=max_val,  # Adjust based on actual wind speed values
         )
     else:
         # Default color scale
@@ -234,10 +234,12 @@ def process_map_actions(actions, m):
             parameter = action.get("parameter", "temperature")  # Default to temperature if not specified
             forecast_date = action.get("forecast_date", "12-18-2022")  # Default to the available data date
             location = action.get("location", None)  # Optional location filter
-            
+
             try:
                 # Fetch weather data
                 weather_df = get_weather_forecast_data()
+                min_val = weather_df[parameter].min()
+                max_val = weather_df[parameter].max()
                 
                 if weather_df is None or weather_df.empty:
                     st.warning("No weather data available")
@@ -313,7 +315,7 @@ def process_map_actions(actions, m):
                     continue
                 
                 # Get color scale for the selected parameter
-                colormap = get_weather_color_scale(parameter)
+                colormap = get_weather_color_scale(parameter, min_val, max_val)
                 
                 # Add the weather layer with parameter-specific styling
                 layer_name = f"Weather - {parameter.capitalize()}"
