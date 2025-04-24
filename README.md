@@ -1,37 +1,40 @@
 # Geospatial AI Assistant
 
-A Python-based interactive geospatial analysis application that combines the power of Google's Gemini AI model with mapping capabilities to enable natural language interactions with geographic data.
+A Python-based interactive geospatial analysis application that combines the power of Google's Gemini AI model with mapping capabilities to enable natural language interactions with geographic data and weather data from [Google WeatherNext](https://deepmind.google/technologies/weathernext/).
 
 ## Features
 
 - **AI-Powered Chat Interface**: Communicate with a geospatial-specialized AI assistant
 - **Dynamic Map Visualization**: See results directly on an interactive map
 - **Multiple Geospatial Operations**:
-  - Location marking
-  - Region highlighting (states, countries, continents)
+  - Location marking and search
+  - Region highlighting (states, counties, countries, continents)
   - Distance measurements and route visualization
   - Line drawing between points
   - Polygon creation
   - Circular radius visualization
   - Heatmap generation
   - Weather data visualization (temperature, precipitation, wind speed)
+  - Wind risk analysis for power infrastructure
 
-## Requirements
+## Quick Start Guide
 
-- Python 3.7+
+### Requirements
+
+- Python 3.12+
 - Google Cloud project with Vertex AI API access
 - Google Cloud service account credentials
 
-## Installation
+### Installation
 
 1. **Clone this repository**:
-   ```
-   git clone https://github.com/yourusername/geospatial-ai-assistant.git
-   cd geospatial-ai-assistant
+   ```bash
+   git clone https://github.com/yourusername/gemini-geospatial-streamlit.git
+   cd gemini-geospatial-streamlit
    ```
 
 2. **Install dependencies**:
-   ```
+   ```bash
    pip install -r requirements.txt
    ```
 
@@ -42,107 +45,79 @@ A Python-based interactive geospatial analysis application that combines the pow
    - Run `gcloud init` to initialize the SDK
    
    b. **Set up Application Default Credentials**:
-   - Run the following command:
-      ```
-      gcloud auth application-default login` to set up your user credentials
-      ```
-   - This will open a browser window where you can sign in with your Google account
-   - Alternatively, if using a service account:
-     ```
-     export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
-     ```
-
-1. **Set up environment variables**:
-   - Create a `.env` file in the project root directory
-   - Add the following variables:
-     ```
-     GOOGLE_CLOUD_PROJECT=your-project-id
-     REGION=your-gcp-region
-     ```
-
-## Usage
-
-1. **Start the application**:
+   ```bash
+   gcloud auth application-default login
    ```
+   This will open a browser window for you to sign in with your Google account
+   
+   c. **Alternative: Use a service account key file**:
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
+   ```
+
+4. **Configure environment variables**:
+   Create a `.env` file in the project root with:
+   ```bash
+   PROJECT_ID=your-project-id
+   REGION=your-gcp-region  # e.g., us-central1
+   ```
+
+5. **Start the application**:
+   ```bash
    streamlit run app.py
    ```
 
-2. **Interact with the AI**:
-   - Type natural language questions or commands in the chat input
-   - See responses and map visualizations in real-time
-   - Use example queries from the sidebar to get started
+### Using the Application
+
+1. **Chat Interface**: The left panel contains the chat interface where you can:
+   - Type natural language questions about locations, maps, and weather
+   - View AI responses and any additional structured data
+
+2. **Interactive Map**: The right panel displays the map with visualizations based on your questions.
+
+3. **Sidebar Options**:
+   - Example queries to help you get started
+   - Weather data date selector
+   - Buttons to clear chat history or reload data
+
+4. **Getting the best results**:
+   - Be specific about locations (e.g., "Philadelphia, PA" instead of just "Philadelphia")
+   - For weather data, specify the type (temperature, precipitation, wind speed)
+   - Try the example queries to see different map capabilities
 
 ## Example Queries
 
 ### Geospatial
 - "Show me the 10 largest cities in the United States"
-- "Highlight Georgia on the map"
+- "Highlight Fulton County, Georgia on the map"
 - "Draw a line connecting New York and Los Angeles"
-- "Create a polygon around the Great Lakes region"
-- "Show me the distance between Chicago and Miami"
-- "Highlight the continent of Asia"
+- "Compare the land area of Travis County, TX and King County, WA"
+- "Show all counties in Florida"
+- "Highlight ZIP code 90210 on the map"
 
-### Weather Data (Pennsylvania Only)
+### Weather Data (Currently Pennsylvania Only)
 - "Show me the temperature forecast for Pennsylvania"
 - "What's the precipitation forecast for PA?"
 - "Show the wind speed data for Pittsburgh area"
 - "Display weather data for Philadelphia"
+- "Are any power lines at risk of high wind speed in the next 10 days?"
 
-## How It Works
+## New Features
 
-The application uses Google's Gemini model to interpret natural language queries about geographic data and locations. The AI returns structured JSON responses that the application translates into map actions using Folium and GeoPandas. Results are displayed in a user-friendly Streamlit interface.
+- **Wind Risk Analysis**: Analyze and visualize areas where power infrastructure may be affected by high winds
+- **Multiple Weather Event Support**: Handle and visualize multiple wind or weather events across different dates
+- **Improved Location Search**: Enhanced location matching for more accurate region highlighting
+- **Power Line Visualization**: Display Pennsylvania's power transmission network
 
-## Customization
+## Troubleshooting
 
-- **Change the base map**: Modify the `initialize_map()` function to use different map tiles
-- **Add new map actions**: Extend the `process_map_actions()` function with additional capabilities
-- **Customize the system prompt**: Update the system prompt in `get_gemini_response()` to change AI behavior
-- **Add more datasets**: Create additional data loading functions similar to `get_us_states()`
-
-## Project Structure
-
-The application has been refactored into a modular structure:
-
-- `app.py`: Main application entry point that initializes components and manages layout
-- `config/`: Configuration files and settings
-  - `settings.py`: Application settings, constants, and session state initialization
-  - `credentials.py`: Handles Google Cloud credentials
-- `data/`: Data loading and processing modules
-  - `bigquery_client.py`: BigQuery client initialization and query execution
-  - `geospatial_data.py`: Functions for loading and processing geospatial data 
-  - `fallback_data.py`: Fallback data sources when BigQuery is unavailable
-  - `weather_data.py`: Weather forecast data loading and processing
-- `components/`: UI components and Streamlit widgets
-  - `sidebar.py`: Sidebar UI elements and example queries
-  - `chat.py`: Chat interface components and message display
-  - `map.py`: Map display and interaction
-- `services/`: Business logic and external services
-  - `gemini_service.py`: Gemini AI API interaction
-  - `map_processor.py`: Processes map actions from AI responses
-- `utils/`: Utility functions
-  - `geo_utils.py`: Geospatial utility functions
-  - `streamlit_utils.py`: Streamlit-specific helper functions
-
-## Caching and Cache Management
-
-The application uses Streamlit's caching mechanism to improve performance. Here are some common scenarios when you might need to clear the cache:
-
-1. **After Code Changes**: When you modify functions decorated with `@st.cache_data` or `@st.cache_resource`, you'll need to clear the cache to see the changes take effect.
-
-2. **Data Updates**: If your underlying data sources have changed but the cached results are still being used.
-
-3. **Memory Management**: If you notice high memory usage from accumulated cached results.
-
-To clear the cache, you can:
-
-1. **Use the UI**: Click the "Clear cache" button in the Streamlit app's hamburger menu (☰).
-
-2. **During Development**: Press 'C' while the app is running to clear the cache.
-
-Remember that cached values are available to all users of your app. If you need to save results that should only be accessible within a session, use Session State instead.
+- **BigQuery Connection Issues**: The app includes fallback data if BigQuery isn't available
+- **Map Not Updating**: Use the "Clear Cache" button in the sidebar or the "Clear cache" option in the Streamlit menu
+- **Missing Visualizations**: Ensure your query is specific about the location and data type
+- **Performance Issues**: Weather data processing can be resource-intensive; try filtering by specific dates
 
 ## Notes
 
-- The application uses GeoPandas' built-in natural earth datasets, which might be deprecated in future versions
-- For production use, consider downloading and storing required geodata files locally
+- Weather data is based on forecasts available via [Google WeatherNext](https://deepmind.google/technologies/weathernext/) and is currently limited to Pennsylvania
+- The application uses cached data to improve performance; use the "Reload Geospatial Data" button if needed
 
