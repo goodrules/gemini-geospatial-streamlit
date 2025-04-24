@@ -121,3 +121,8 @@ A Python-based interactive geospatial analysis application that combines the pow
 - Weather data is based on forecasts available via [Google WeatherNext](https://deepmind.google/technologies/weathernext/) and is currently limited to Pennsylvania
 - The application uses cached data to improve performance; use the "Reload Geospatial Data" button if needed
 
+## Contributors
+
+- [goodrules](https://github.com/goodrules)
+- [dklanac](https://github.com/dklanac)
+
