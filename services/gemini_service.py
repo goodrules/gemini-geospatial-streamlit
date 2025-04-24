@@ -243,7 +243,8 @@ def get_system_prompt():
             {
                 "action_type": "show_weather",
                 "parameter": "temperature",
-                "forecast_date": "12-18-2022"
+                "forecast_date": "12-18-2022",
+                "location": "pennsylvania"
             }
         ]
     }
@@ -255,7 +256,8 @@ def get_system_prompt():
             {
                 "action_type": "show_weather",
                 "parameter": "temperature",
-                "forecast_date": "12-19-2022"
+                "forecast_date": "12-19-2022",
+                "location": "pennsylvania"
             }
         ]
     }

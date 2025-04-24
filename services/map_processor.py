@@ -511,6 +511,7 @@ def process_map_actions(actions, m):
             # If no location in this action, try to use location from extracted_locations
             elif extracted_locations:
                 # Priority order: county, county_name, state, zipcode, weather_location
+                st.info(f"DEBUG: Extracted locations: {extracted_locations}")
                 if "county" in extracted_locations:
                     location = extracted_locations["county"]
                     st.info(f"Using county from highlight action: {location}")
@@ -526,6 +527,11 @@ def process_map_actions(actions, m):
                 elif "weather_location" in extracted_locations:
                     location = extracted_locations["weather_location"]
                     st.info(f"Using weather location: {location}")
+            
+            # If still no location, default to "pennsylvania" for state-level weather queries
+            if location is None or location.strip() == "":
+                location = "pennsylvania"
+                st.info(f"No specific location found, defaulting to entire state: {location}")
 
             try:
                 # Fetch weather data
@@ -585,11 +591,17 @@ def process_map_actions(actions, m):
                             
                         # Clean up location string for better matching
                         clean_location = location.lower()
-                        # Remove common words that might interfere with matching
-                        for word in ["county", "parish", "borough", "city", "town", "township", "state of", "commonwealth of", "pa", "pennsylvania"]:
-                            clean_location = clean_location.replace(word, "").strip()
-                        # Remove any trailing commas and whitespace
-                        clean_location = clean_location.rstrip(",").strip()
+                        
+                        # For state-level queries, we need special handling
+                        if clean_location == "pennsylvania" or clean_location == "pa":
+                            # Keep it as is for exact state name match
+                            st.info(f"Processing state-level query for: {clean_location}")
+                        else:
+                            # Remove common words that might interfere with matching for other locations
+                            for word in ["county", "parish", "borough", "city", "town", "township", "state of", "commonwealth of"]:
+                                clean_location = clean_location.replace(word, "").strip()
+                            # Remove any trailing commas and whitespace
+                            clean_location = clean_location.rstrip(",").strip()
                         
                         # Log the cleaned location for debugging
                         st.info(f"Searching for location: '{clean_location}'")
