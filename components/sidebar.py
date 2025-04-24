@@ -66,11 +66,8 @@ def render_example_questions():
         "Are any power lines at risk of high wind speed in the next 10 days?"
     ]
     
-    st.subheader("Geospatial")
-    examples = geo_examples
-    
-    st.subheader("Weather (Pennsylvania only)")
-    examples.extend(weather_examples)
+    st.subheader("Geospatial & Weather (Pennsylvania only)")
+    examples = geo_examples + weather_examples
     
     for example in examples:
         if st.button(example):
