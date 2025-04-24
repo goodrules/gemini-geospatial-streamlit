@@ -213,11 +213,12 @@ def get_system_prompt():
     IMPORTANT: When users ask about risk to power lines from high winds, potential power outages due to storms,
     or if power lines are at risk of damage from weather, use the "analyze_wind_risk" action. For example:
     {
-        "response": "I've analyzed whether any power lines in Pennsylvania are at risk from high winds in the forecast period. High winds over 16 m/s can potentially damage power infrastructure.",
+        "response": "I've analyzed whether any power lines in Pennsylvania are at risk from high winds in the forecast period. The analysis identifies both high-risk areas (winds ≥16 m/s) and moderate-risk areas (winds 13-16 m/s).",
         "map_actions": [
             {
                 "action_type": "analyze_wind_risk",
-                "wind_threshold": 16.0,
+                "high_threshold": 16.0,
+                "moderate_threshold": 13.0,
                 "forecast_days": 10
             }
         ]
@@ -293,13 +294,14 @@ def get_system_prompt():
         ]
     }
     
-    For power line risk assessment:
+    For power line risk assessment (with dual risk levels):
     {
-        "response": "I've analyzed the forecast data and found areas where power lines may be at risk from high winds in the next 10 days.",
+        "response": "I've analyzed the forecast data and found areas where power lines may be at risk from high and moderate winds in the next 10 days.",
         "map_actions": [
             {
                 "action_type": "analyze_wind_risk",
-                "wind_threshold": 16.0,        # Wind speed threshold in m/s (>= 16 m/s is considered dangerous)
+                "high_threshold": 16.0,        # High risk wind speed threshold in m/s (>= 16 m/s is considered dangerous)
+                "moderate_threshold": 13.0,    # Moderate risk wind speed threshold in m/s (13-16 m/s is moderate risk)
                 "forecast_days": 10            # Number of days to look ahead
             }
         ]
