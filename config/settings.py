@@ -7,7 +7,7 @@ from google.genai import types
 load_dotenv()
 PROJECT_ID = os.environ.get("PROJECT_ID")
 REGION = os.environ.get("REGION", "us-central1")
-GEMINI_MODEL = "gemini-2.0-flash-001"
+GEMINI_MODEL = "gemini-2.5-flash-preview-04-17"
 
 def setup_page_config():
     """Configure Streamlit page settings"""
@@ -32,6 +32,11 @@ def init_session_state():
         st.session_state.flood_zones_loaded = False
     if "power_lines_loaded" not in st.session_state:
         st.session_state.power_lines_loaded = False
+    # Add weather data state variables
+    if "weather_forecast_date" not in st.session_state:
+        st.session_state.weather_forecast_date = None
+    if "weather_data_loaded" not in st.session_state:
+        st.session_state.weather_data_loaded = False
     if "history" not in st.session_state:
         st.session_state.history = [
             types.Content(

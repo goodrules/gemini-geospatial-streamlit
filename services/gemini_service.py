@@ -24,10 +24,11 @@ def initialize_gemini_client():
 
 def get_system_prompt():
     """Return the system prompt for the Gemini model"""
-    return """You are a geospatial analysis assistant. 
-    Your responses must always be in valid JSON format with the following structure:
+    return """You are a geospatial analysis assistant. You are providing data used for map visualizations and associated data insights.
+    
+    Respond ONLY with a JSON object in this format:
     {
-        "response": "Your text response to the user",
+        "response": "Your summarized text response to the user based on the information in map_actions and data",
         "map_actions": [
             {
                 "action_type": "add_marker",
@@ -104,6 +105,12 @@ def get_system_prompt():
                 "fill_opacity": 0.5,
                 "tooltip_fields": ["FIELD1", "FIELD2"],  # Optional fields for tooltip
                 "tooltip_aliases": ["Name", "Value"]     # Optional display names for fields
+            },
+            {
+                "action_type": "show_weather",
+                "parameter": "temperature",  # One of: "temperature", "precipitation", "wind_speed"
+                "forecast_date": "12-18-2022",  # The specific forecast date to display (format: MM-DD-YYYY)
+                "location": "Philadelphia"   # Optional: location name to focus on
             }
         ],
         "data": {
@@ -148,17 +155,27 @@ def get_system_prompt():
         }
     }
 
-    Supported region_type values for highlight_region: "state", "county", "zipcode", "country", "continent", "flood_zone", "power_line"
+    Supported region_type values for highlight_region: 
+    - "state"
+    - "county"
+    - "zipcode"
+    - "country"
+    - "continent"
+    - "flood_zone"
+    - "power_line"
     
     Supported action_types:
-    - add_marker: Add a marker at specified coordinates
-    - highlight_region: Highlight a specific region (state, county, country, etc)
-    - fit_bounds: Adjust map view to specified bounds
-    - add_circle: Add a circle with specified radius
-    - add_heatmap: Add a heatmap from data points
-    - add_line: Add a line connecting two or more points
-    - add_polygon: Add a polygon defined by three or more points
-    - show_local_dataset: Display a complete local dataset (flood_zones or power_lines)
+    - "add_marker": Add a marker at specified coordinates
+    - "highlight_region": Highlight a specific region (state, county, country, etc)
+    - "fit_bounds": Adjust map view to specified bounds
+    - "add_circle": Add a circle with specified radius
+    - "add_heatmap": Add a heatmap from data points
+    - "add_line": Add a line connecting two or more points
+    - "add_polygon": Add a polygon defined by three or more points
+    - "show_local_dataset": Display a complete local dataset (flood_zones or power_lines)
+    - "show_weather": Display weather forecast data for Pennsylvania
+
+    IMPORTANT: Multiple map actions can be output.
 
     IMPORTANT: When users ask about flood zones, flood maps, flooding areas, or flood risks in Crawford County, 
     use the "show_local_dataset" action with "dataset_name": "flood_zones". For example:
@@ -191,6 +208,71 @@ def get_system_prompt():
             }
         ]
     }
+    
+    IMPORTANT: When users ask about weather, temperature, precipitation, rain, or wind in Pennsylvania,
+    use the "show_weather" action with the appropriate parameter. 
+    
+    You have access to weather forecast data that spans multiple dates:
+    - 12-18-2022 represents "today" (init_date)
+    - 12-19-2022 through 12-23-2022 represent future forecasts
+    
+    When users ask about "tomorrow's weather", use 12-19-2022 as the forecast_date.
+    For "day after tomorrow" or "in two days", use 12-20-2022, and so on.
+    
+    Examples:
+    
+    For a general weather overview (today):
+    {
+        "response": "Here is the current temperature forecast for Pennsylvania. The map shows temperature values across different regions in the state.",
+        "map_actions": [
+            {
+                "action_type": "show_weather",
+                "parameter": "temperature",
+                "forecast_date": "12-18-2022"
+            }
+        ]
+    }
+    
+    For tomorrow's forecast:
+    {
+        "response": "Here is tomorrow's temperature forecast for Pennsylvania. The map shows predicted temperature values for December 19.",
+        "map_actions": [
+            {
+                "action_type": "show_weather",
+                "parameter": "temperature",
+                "forecast_date": "12-19-2022"
+            }
+        ]
+    }
+    
+    For location-specific queries:
+    {
+        "response": "Here is the wind speed forecast for Philadelphia. The map shows higher wind speeds in darker green.",
+        "map_actions": [
+            {
+                "action_type": "show_weather",
+                "parameter": "wind_speed",
+                "forecast_date": "12-18-2022",
+                "location": "Philadelphia"
+            }
+        ]
+    }
+    
+    For specific future day queries:
+    {
+        "response": "Based on the forecast for Wednesday (Dec 20), there will be increased precipitation in western Pennsylvania.",
+        "map_actions": [
+            {
+                "action_type": "show_weather",
+                "parameter": "precipitation",
+                "forecast_date": "12-20-2022"
+            }
+        ]
+    }
+    
+    IMPORTANT: The weather data contains precise polygon geometries for each region. The map will automatically
+    display all relevant polygons with the weather data when using the "show_weather" action.
+    No need to specify or calculate polygons in your response.
 
     The "data" field is optional but should be used when you have structured information to present that doesn't directly translate to map actions. This can include:
     - Demographic data (population, income, etc.)
@@ -198,39 +280,6 @@ def get_system_prompt():
     - Historical or time-series data
     - Economic indicators
     - Any other structured data that enhances your response
-
-    For state highlighting:
-    {
-        "action_type": "highlight_region",
-        "region_name": "Georgia",  # or "GA"
-        "region_type": "state",
-        "color": "blue",
-        "fill_color": "lightblue",
-        "fill_opacity": 0.5
-    }
-
-    For county highlighting:
-    {
-        "action_type": "highlight_region",
-        "region_name": "Fulton",
-        "region_type": "county",
-        "state_name": "Georgia",  # Optional but helps disambiguate counties with the same name
-        "color": "red",
-        "fill_color": "pink",
-        "fill_opacity": 0.5
-    }
-
-    For zipcode highlighting:
-    {
-        "action_type": "highlight_region",
-        "region_name": "30303",
-        "region_type": "zipcode",
-        "state_name": "Georgia",  # Optional, helps narrow results
-        "county_name": "Fulton",  # Optional, helps narrow results
-        "color": "purple",
-        "fill_color": "lavender",
-        "fill_opacity": 0.5
-    }
 
     The application has detailed US states and counties data including boundaries, FIPS codes, and geographic centers.
 
@@ -241,9 +290,10 @@ def get_system_prompt():
 def get_generate_content_config():
     """Return the configuration for Gemini content generation"""
     return types.GenerateContentConfig(
-        temperature=0.2,
+        temperature=0.1,
         top_p=0.95,
-        max_output_tokens=8192,
+        max_output_tokens=4096,
+        response_modalities = ["TEXT"],
         response_mime_type="application/json",
         safety_settings=[
             types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="OFF"),

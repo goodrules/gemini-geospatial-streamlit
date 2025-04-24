@@ -2,10 +2,14 @@ import folium
 import streamlit as st
 import pandas as pd
 import json
+import geopandas as gpd
+from shapely.geometry import shape, Point
 from folium.plugins import HeatMap
+from branca.colormap import LinearColormap
 from data.geospatial_data import get_us_states, get_us_counties, get_us_zipcodes
 from data.geospatial_data import (get_us_states, get_us_counties, get_us_zipcodes,
                                  get_crawford_flood_zones, get_pa_power_lines)
+from data.weather_data import get_weather_forecast_data
 from utils.geo_utils import find_region_by_name, get_world_countries, get_major_cities
 from utils.streamlit_utils import create_tooltip_html
 
@@ -24,6 +28,77 @@ def serialize_geojson(gdf):
     
     # Use to_json with default serializer for dates
     return json.loads(gdf.to_json())
+
+def create_weather_tooltip(properties, parameter):
+    """Create HTML tooltip for weather data"""
+    # Convert temperature from Kelvin to Fahrenheit
+    temp_f = None
+    if "temperature" in properties:
+        temp_k = float(properties["temperature"])
+        temp_f = (temp_k - 273.15) * 9/5 + 32
+    
+    # Format precipitation as mm
+    precip = None
+    if "precipitation" in properties:
+        precip = float(properties["precipitation"]) * 1000  # Convert to mm if needed
+    
+    # Format wind speed (already in m/s)
+    wind = None
+    if "wind_speed" in properties:
+        wind = float(properties["wind_speed"])
+    
+    # Create tooltip with available data
+    tooltip_html = f"""
+    <div style="min-width: 180px;">
+        <h4>Weather Forecast</h4>
+        <p><b>Date:</b> {properties.get("forecast_date", "N/A")}</p>
+    """
+    
+    if temp_f is not None:
+        tooltip_html += f"<p><b>Temperature:</b> {temp_f:.1f}°F</p>"
+    
+    if precip is not None:
+        tooltip_html += f"<p><b>Precipitation:</b> {precip:.4f} mm</p>"
+    
+    if wind is not None:
+        tooltip_html += f"<p><b>Wind Speed:</b> {wind:.1f} m/s</p>"
+    
+    tooltip_html += "</div>"
+    return tooltip_html
+
+def get_weather_color_scale(parameter):
+    """Define color scales for different weather parameters"""
+    if parameter == "temperature":
+        # Temperature color scale (Kelvin values)
+        # Colors from cool blue to hot red
+        return LinearColormap(
+            ['#0000ff', '#00ffff', '#00ff00', '#ffff00', '#ff0000'],
+            vmin=265,  # ~15°F
+            vmax=285,  # ~55°F
+        )
+    elif parameter == "precipitation":
+        # Precipitation color scale (mm)
+        # Colors from white/pale blue (low) to dark blue (high)
+        return LinearColormap(
+            ['#ffffff', '#c6dbef', '#9ecae1', '#6baed6', '#3182bd', '#08519c'],
+            vmin=0,
+            vmax=0.001,  # Adjust based on actual precipitation values
+        )
+    elif parameter == "wind_speed":
+        # Wind speed color scale (m/s)
+        # Colors from white/pale green (low) to dark green (high)
+        return LinearColormap(
+            ['#ffffff', '#c7e9c0', '#a1d99b', '#74c476', '#31a354', '#006d2c'],
+            vmin=0,
+            vmax=10,  # Adjust based on actual wind speed values
+        )
+    else:
+        # Default color scale
+        return LinearColormap(
+            ['#ffffff', '#bbbbbb', '#777777', '#444444', '#000000'],
+            vmin=0,
+            vmax=100,
+        )
 
 def process_map_actions(actions, m):
     """Process map actions from AI responses and apply them to the map"""
@@ -153,6 +228,139 @@ def process_map_actions(actions, m):
             if bounds and isinstance(bounds, list) and len(bounds) == 2:
                 m.fit_bounds(bounds)  # Apply explicit bounds
                 return m  # Return immediately with explicit bounds
+                
+        elif action_type == "show_weather":
+            # Get weather data parameters
+            parameter = action.get("parameter", "temperature")  # Default to temperature if not specified
+            forecast_date = action.get("forecast_date", "12-18-2022")  # Default to the available data date
+            location = action.get("location", None)  # Optional location filter
+            
+            try:
+                # Fetch weather data
+                weather_df = get_weather_forecast_data()
+                
+                if weather_df is None or weather_df.empty:
+                    st.warning("No weather data available")
+                    continue
+                
+                # Filter by forecast date
+                weather_df = weather_df[weather_df["forecast_date"] == forecast_date]
+                
+                if weather_df.empty:
+                    st.warning(f"No weather data available for date: {forecast_date}")
+                    continue
+                
+                # Convert GeoJSON polygon strings to actual GeoDataFrame
+                geometries = []
+                for _, row in weather_df.iterrows():
+                    # Parse GeoJSON polygon string
+                    try:
+                        geojson = json.loads(row['geography_polygon'])
+                        polygon = shape(geojson)
+                        geometries.append(polygon)
+                    except Exception as e:
+                        st.error(f"Error parsing polygon: {e}")
+                        continue
+                
+                # Create GeoDataFrame with weather data
+                gdf = gpd.GeoDataFrame(
+                    weather_df,
+                    geometry=geometries,
+                    crs="EPSG:4326"
+                )
+                
+                # Location-based filtering
+                if location:
+                    # We'll do a basic filtering based on polygon coordinates
+                    try:
+                        # Get state GeoDataFrame to find location
+                        states = get_us_states()
+                        counties = get_us_counties()
+                        
+                        # Try to find as state first
+                        state_match = find_region_by_name(states, location)
+                        
+                        if state_match is not None:
+                            # Filter by state bounds
+                            gdf = gdf[gdf.intersects(state_match.unary_union)]
+                        else:
+                            # Try as county
+                            county_match = find_region_by_name(counties, location)
+                            if county_match is not None:
+                                # Filter by county bounds
+                                gdf = gdf[gdf.intersects(county_match.unary_union)]
+                            else:
+                                # For cities use a basic point and radius approach
+                                if location.lower() == "philadelphia":
+                                    # Philadelphia coordinates (approx)
+                                    philly_point = Point(-75.1652, 39.9526)
+                                    # Create a buffer around the point (in degrees, approx 20km)
+                                    buffer_distance = 0.2
+                                    philly_buffer = philly_point.buffer(buffer_distance)
+                                    # Filter polygons that intersect with the buffer
+                                    gdf = gdf[gdf.intersects(philly_buffer)]
+                                elif location.lower() == "pittsburgh":
+                                    # Pittsburgh coordinates (approx)
+                                    pitt_point = Point(-79.9959, 40.4406)
+                                    buffer_distance = 0.2
+                                    pitt_buffer = pitt_point.buffer(buffer_distance)
+                                    gdf = gdf[gdf.intersects(pitt_buffer)]
+                    except Exception as e:
+                        st.warning(f"Could not filter by location: {str(e)}")
+                
+                if gdf.empty:
+                    st.warning(f"No weather data matching the criteria")
+                    continue
+                
+                # Get color scale for the selected parameter
+                colormap = get_weather_color_scale(parameter)
+                
+                # Add the weather layer with parameter-specific styling
+                layer_name = f"Weather - {parameter.capitalize()}"
+                if location:
+                    layer_name += f" - {location}"
+                layer_name += f" - {forecast_date}"
+                
+                # Function to style each polygon based on parameter value
+                def style_function(feature):
+                    properties = feature["properties"]
+                    value = float(properties.get(parameter, 0))
+                    color = colormap(value)
+                    
+                    return {
+                        'fillColor': color,
+                        'color': 'gray',
+                        'weight': 1,
+                        'fillOpacity': 0.7
+                    }
+                
+                # Add GeoJSON layer with weather data
+                weather_layer = folium.GeoJson(
+                    json.loads(gdf.to_json()),
+                    name=layer_name,
+                    style_function=style_function,
+                    tooltip=folium.GeoJsonTooltip(
+                        fields=[parameter, 'forecast_date'],
+                        aliases=[parameter.capitalize(), 'Date'],
+                        localize=True,
+                        sticky=True
+                    )
+                ).add_to(m)
+                
+                # Add colormap legend
+                colormap.caption = f'{parameter.capitalize()} Scale'
+                colormap.add_to(m)
+                
+                # Add dataset bounds to all_bounds list
+                bounds = gdf.total_bounds
+                all_bounds.append([bounds[1], bounds[0]])  # SW corner
+                all_bounds.append([bounds[3], bounds[2]])  # NE corner
+                
+                st.success(f"Displaying weather data: {parameter} for {forecast_date}")
+                
+            except Exception as e:
+                st.error(f"Error displaying weather data: {e}")
+                continue
         
         elif action_type == "show_local_dataset":
             # New action type for directly displaying a full local dataset
@@ -276,6 +484,141 @@ def process_map_actions(actions, m):
                 # Add all polygon points to bounds
                 for loc in locations:
                     all_bounds.append(loc)
+                    
+        elif action_type == "show_weather":
+            # Get weather parameter to display (temperature, precipitation, or wind_speed)
+            weather_param = action.get("weather_param", "temperature")
+            
+            # Get forecast date from action or session state
+            forecast_date = action.get("forecast_date", None)
+            if forecast_date is None and "weather_forecast_date" in st.session_state:
+                forecast_date = st.session_state.weather_forecast_date
+            
+            # Get the weather forecast data
+            weather_df = get_weather_forecast_data()
+            
+            if weather_df is None or weather_df.empty:
+                st.error("No weather data available")
+                continue
+                
+            # Filter by forecast date if provided
+            if forecast_date:
+                weather_df = weather_df[weather_df['forecast_date'] == forecast_date]
+                
+            if weather_df.empty:
+                st.error(f"No weather data available for date {forecast_date}")
+                continue
+                
+            # Create GeoDataFrame from the weather data
+            gdf_list = []
+            
+            for _, row in weather_df.iterrows():
+                # Parse the GeoJSON polygon from the geography_polygon column
+                try:
+                    geojson = json.loads(row['geography_polygon'])
+                    geometry = shape(geojson)
+                    
+                    # Create GeoDataFrame for this row
+                    gdf_row = gpd.GeoDataFrame(
+                        {
+                            'forecast_date': row['forecast_date'],
+                            'init_date': row['init_date'],
+                            'temperature': row['temperature'],
+                            'precipitation': row['precipitation'],
+                            'wind_speed': row['wind_speed'],
+                            'geometry': [geometry]
+                        },
+                        crs="EPSG:4326"
+                    )
+                    gdf_list.append(gdf_row)
+                except Exception as e:
+                    st.error(f"Error parsing geography: {e}")
+                    continue
+            
+            if not gdf_list:
+                st.error("No valid geographic data found in weather forecast")
+                continue
+                
+            # Combine all GeoDataFrames
+            weather_gdf = pd.concat(gdf_list)
+            
+            # Generate color map based on weather parameter
+            if weather_param == "temperature":
+                # Convert from Kelvin to Celsius for display
+                weather_gdf['display_value'] = weather_gdf['temperature'] - 273.15
+                vmin = weather_gdf['display_value'].min()
+                vmax = weather_gdf['display_value'].max()
+                colormap = LinearColormap(
+                    colors=['blue', 'green', 'yellow', 'orange', 'red'], 
+                    vmin=vmin, 
+                    vmax=vmax,
+                    caption=f"Temperature (°C)"
+                )
+                unit = "°C"
+            elif weather_param == "precipitation":
+                weather_gdf['display_value'] = weather_gdf['precipitation']
+                vmin = 0
+                vmax = max(0.001, weather_gdf['display_value'].max())  # Ensure non-zero range
+                colormap = LinearColormap(
+                    colors=['#ffffff', '#c6dbef', '#6baed6', '#2171b5', '#08306b'], 
+                    vmin=vmin, 
+                    vmax=vmax,
+                    caption=f"Precipitation (mm)"
+                )
+                unit = "mm"
+            elif weather_param == "wind_speed":
+                weather_gdf['display_value'] = weather_gdf['wind_speed']
+                vmin = weather_gdf['display_value'].min()
+                vmax = weather_gdf['display_value'].max()
+                colormap = LinearColormap(
+                    colors=['#f7fcf0', '#bae4b3', '#74c476', '#31a354', '#006d2c'], 
+                    vmin=vmin, 
+                    vmax=vmax,
+                    caption=f"Wind Speed (m/s)"
+                )
+                unit = "m/s"
+            else:
+                st.error(f"Unsupported weather parameter: {weather_param}")
+                continue
+                
+            # Serialize the GeoDataFrame to GeoJSON
+            geojson_data = json.loads(weather_gdf.to_json())
+            
+            # Create and add the choropleth layer
+            folium.GeoJson(
+                geojson_data,
+                name=f"{weather_param.capitalize()} Forecast",
+                style_function=lambda feature: {
+                    'fillColor': colormap(feature['properties']['display_value']),
+                    'color': 'black',
+                    'weight': 1,
+                    'fillOpacity': 0.7
+                },
+                tooltip=folium.GeoJsonTooltip(
+                    fields=['forecast_date', 'display_value'],
+                    aliases=[
+                        'Forecast Date', 
+                        f"{weather_param.capitalize()} ({unit})"
+                    ],
+                    localize=True,
+                    sticky=True,
+                    labels=True,
+                    style="""
+                        background-color: #F0EFEF;
+                        border: 2px solid black;
+                        border-radius: 3px;
+                        box-shadow: 3px;
+                    """,
+                )
+            ).add_to(m)
+            
+            # Add the colormap to the map
+            colormap.add_to(m)
+            
+            # Add dataset bounds to all_bounds list
+            bounds = weather_gdf.total_bounds
+            all_bounds.append([bounds[1], bounds[0]])  # SW corner
+            all_bounds.append([bounds[3], bounds[2]])  # NE corner
     
     # After processing all actions, fit the map to show all features
     if all_bounds:

@@ -1,6 +1,7 @@
 import streamlit as st
 from data.geospatial_data import initialize_app_data
 from utils.streamlit_utils import reset_session_state
+from data.weather_data import get_weather_forecast_dates
 
 def render_sidebar():
     """Render the sidebar with settings and examples"""
@@ -9,6 +10,26 @@ def render_sidebar():
         
         # Data source info
         st.info("Using US States, Counties, and Zip Code data from Google BigQuery public datasets.")
+        
+        # Weather forecast date filter
+        if "weather_forecast_date" not in st.session_state:
+            st.session_state.weather_forecast_date = None
+            
+        forecast_dates = get_weather_forecast_dates()
+        if forecast_dates:
+            with st.expander("Weather Data Settings"):
+                selected_date = st.selectbox(
+                    "Filter by forecast date:",
+                    options=["All Dates"] + forecast_dates,
+                    index=0
+                )
+                
+                if selected_date != "All Dates":
+                    st.session_state.weather_forecast_date = selected_date
+                else:
+                    st.session_state.weather_forecast_date = None
+                    
+                st.caption("Weather data is available for Pennsylvania only.")
         
         if st.button("Clear Chat"):
             reset_session_state()
@@ -26,7 +47,8 @@ def render_sidebar():
 def render_example_questions():
     """Display example questions users can click on"""
     st.header("Example Questions")
-    examples = [
+    
+    geo_examples = [
         "Show me the 10 largest cities in the United States",
         "Highlight Fulton County, Georgia on the map",
         "Which state has the largest land area?",
@@ -37,6 +59,20 @@ def render_example_questions():
         "What's the land area of ZIP code 10001 in New York?",
         "Show me all ZIP codes in Miami, Florida"
     ]
+    
+    weather_examples = [
+        "Show me the temperature forecast for Pennsylvania",
+        "What's the precipitation forecast for Pennsylvania?",
+        "Show the wind speed forecast for PA",
+        "What's the temperature in Philadelphia area?",
+        "Show me the weather forecast for Pittsburgh"
+    ]
+    
+    st.subheader("Geospatial")
+    examples = geo_examples
+    
+    st.subheader("Weather (Pennsylvania only)")
+    examples.extend(weather_examples)
     
     for example in examples:
         if st.button(example):

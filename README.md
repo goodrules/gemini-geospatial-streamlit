@@ -14,6 +14,7 @@ A Python-based interactive geospatial analysis application that combines the pow
   - Polygon creation
   - Circular radius visualization
   - Heatmap generation
+  - Weather data visualization (temperature, precipitation, wind speed)
 
 ## Requirements
 
@@ -73,12 +74,19 @@ A Python-based interactive geospatial analysis application that combines the pow
 
 ## Example Queries
 
+### Geospatial
 - "Show me the 10 largest cities in the United States"
 - "Highlight Georgia on the map"
 - "Draw a line connecting New York and Los Angeles"
 - "Create a polygon around the Great Lakes region"
 - "Show me the distance between Chicago and Miami"
 - "Highlight the continent of Asia"
+
+### Weather Data (Pennsylvania Only)
+- "Show me the temperature forecast for Pennsylvania"
+- "What's the precipitation forecast for PA?"
+- "Show the wind speed data for Pittsburgh area"
+- "Display weather data for Philadelphia"
 
 ## How It Works
 
@@ -103,6 +111,7 @@ The application has been refactored into a modular structure:
   - `bigquery_client.py`: BigQuery client initialization and query execution
   - `geospatial_data.py`: Functions for loading and processing geospatial data 
   - `fallback_data.py`: Fallback data sources when BigQuery is unavailable
+  - `weather_data.py`: Weather forecast data loading and processing
 - `components/`: UI components and Streamlit widgets
   - `sidebar.py`: Sidebar UI elements and example queries
   - `chat.py`: Chat interface components and message display
