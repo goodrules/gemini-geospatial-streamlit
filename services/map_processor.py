@@ -29,41 +29,106 @@ def serialize_geojson(gdf):
     # Use to_json with default serializer for dates
     return json.loads(gdf.to_json())
 
-def create_weather_tooltip(properties, parameter):
-    """Create HTML tooltip for weather data"""
-    # Convert temperature from Kelvin to Fahrenheit
+def create_weather_tooltip(properties, parameter=None):
+    """
+    Create HTML tooltip for weather data with improved formatting and contextual information
+    
+    Args:
+        properties: Dictionary of properties from the GeoJSON feature
+        parameter: Optional specific parameter to highlight (temperature, precipitation, wind_speed)
+        
+    Returns:
+        HTML string for the tooltip
+    """
+    # Convert temperature from Kelvin to both Fahrenheit and Celsius
     temp_f = None
+    temp_c = None
     if "temperature" in properties:
         temp_k = float(properties["temperature"])
-        temp_f = (temp_k - 273.15) * 9/5 + 32
+        temp_c = temp_k - 273.15
+        temp_f = temp_c * 9/5 + 32
     
-    # Format precipitation as mm
+    # Format precipitation as mm and add context
     precip = None
+    precip_desc = "None"
     if "precipitation" in properties:
-        precip = float(properties["precipitation"]) * 1000  # Convert to mm if needed
+        precip = float(properties["precipitation"]) * 1000  # Convert to mm
+        # Add precipitation description
+        if precip < 0.1:
+            precip_desc = "None"
+        elif precip < 2.5:
+            precip_desc = "Very Light"
+        elif precip < 7.5:
+            precip_desc = "Light"
+        elif precip < 15:
+            precip_desc = "Moderate"
+        elif precip < 30:
+            precip_desc = "Heavy"
+        else:
+            precip_desc = "Very Heavy"
     
-    # Format wind speed (already in m/s)
+    # Format wind speed (m/s and mph) and add context
     wind = None
+    wind_mph = None
+    wind_desc = ""
     if "wind_speed" in properties:
         wind = float(properties["wind_speed"])
+        wind_mph = wind * 2.237  # Convert to mph
+        # Add wind description based on Beaufort scale (simplified)
+        if wind < 0.5:
+            wind_desc = "Calm"
+        elif wind < 1.5:
+            wind_desc = "Light Air"
+        elif wind < 3.3:
+            wind_desc = "Light Breeze"
+        elif wind < 5.5:
+            wind_desc = "Gentle Breeze"
+        elif wind < 7.9:
+            wind_desc = "Moderate Breeze"
+        elif wind < 10.7:
+            wind_desc = "Fresh Breeze"
+        elif wind < 13.8:
+            wind_desc = "Strong Breeze"
+        elif wind < 17.1:
+            wind_desc = "High Wind"
+        else:
+            wind_desc = "Gale Force"
     
     # Create tooltip with available data
+    location_info = ""
+    if "location_name" in properties:
+        location_info = f"<h5>{properties['location_name']}</h5>"
+    
+    # Base tooltip HTML
     tooltip_html = f"""
-    <div style="min-width: 180px;">
-        <h4>Weather Forecast</h4>
+    <div style="min-width: 220px; max-width: 300px; padding: 10px;">
+        <h4 style="margin-top: 0; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
+            Weather Forecast
+        </h4>
+        {location_info}
         <p><b>Date:</b> {properties.get("forecast_date", "N/A")}</p>
     """
     
+    # Add weather data based on what's available
     if temp_f is not None:
-        tooltip_html += f"<p><b>Temperature:</b> {temp_f:.1f}°F</p>"
+        highlight = ' style="background-color: #FFFF99;"' if parameter == "temperature" else ""
+        tooltip_html += f'<p{highlight}><b>Temperature:</b> {temp_f:.1f}°F ({temp_c:.1f}°C)</p>'
     
     if precip is not None:
-        tooltip_html += f"<p><b>Precipitation:</b> {precip:.4f} mm</p>"
+        highlight = ' style="background-color: #FFFF99;"' if parameter == "precipitation" else ""
+        tooltip_html += f'<p{highlight}><b>Precipitation:</b> {precip:.2f} mm ({precip_desc})</p>'
     
     if wind is not None:
-        tooltip_html += f"<p><b>Wind Speed:</b> {wind:.1f} m/s</p>"
+        highlight = ' style="background-color: #FFFF99;"' if parameter == "wind_speed" else ""
+        tooltip_html += f'<p{highlight}><b>Wind Speed:</b> {wind:.1f} m/s ({wind_mph:.1f} mph)<br/><i>{wind_desc}</i></p>'
     
-    tooltip_html += "</div>"
+    tooltip_html += """
+        <div style="font-size: 0.8em; margin-top: 10px; color: #666;">
+            Click for more details
+        </div>
+    </div>
+    """
+    
     return tooltip_html
 
 def get_weather_color_scale(parameter, min_val, max_val):
@@ -107,6 +172,45 @@ def process_map_actions(actions, m):
     
     # Track all bounds to calculate overall view at the end
     all_bounds = []
+    
+    # Extract location information from all actions to use for weather filtering
+    # This allows the weather action to use location data from highlight_region actions
+    extracted_locations = {}
+    
+    # First pass - extract location data from all actions
+    for action in actions:
+        if not isinstance(action, dict):
+            continue
+            
+        action_type = action.get("action_type")
+        
+        if action_type == "highlight_region":
+            region_name = action.get("region_name")
+            region_type = action.get("region_type", "state")
+            state_name = action.get("state_name")
+            
+            if region_name:
+                # Store location data keyed by region type
+                if region_type.lower() == "county":
+                    # For counties, include the state if available
+                    county_key = region_name.lower()
+                    if state_name:
+                        county_key += f", {state_name.lower()}"
+                    extracted_locations["county"] = county_key
+                    # Also store just the county name
+                    extracted_locations["county_name"] = region_name.lower()
+                elif region_type.lower() == "state":
+                    extracted_locations["state"] = region_name.lower()
+                elif region_type.lower() in ["zipcode", "zip_code", "zip"]:
+                    extracted_locations["zipcode"] = region_name
+                    if state_name:
+                        extracted_locations["state"] = state_name.lower()
+            
+        elif action_type == "show_weather":
+            # Store any explicit location specified in the weather action
+            location = action.get("location")
+            if location:
+                extracted_locations["weather_location"] = location.lower()
     
     for action in actions:
         if not isinstance(action, dict):
@@ -233,7 +337,33 @@ def process_map_actions(actions, m):
             # Get weather data parameters
             parameter = action.get("parameter", "temperature")  # Default to temperature if not specified
             forecast_date = action.get("forecast_date", "12-18-2022")  # Default to the available data date
-            location = action.get("location", None)  # Optional location filter
+            
+            # Try to get location from multiple sources in order of priority
+            location = None
+            
+            # First try location directly specified in this action
+            if action.get("location"):
+                location = action.get("location")
+                st.info(f"Using location specified in weather action: {location}")
+            
+            # If no location in this action, try to use location from extracted_locations
+            elif extracted_locations:
+                # Priority order: county, county_name, state, zipcode, weather_location
+                if "county" in extracted_locations:
+                    location = extracted_locations["county"]
+                    st.info(f"Using county from highlight action: {location}")
+                elif "county_name" in extracted_locations:
+                    location = extracted_locations["county_name"]
+                    st.info(f"Using county name from highlight action: {location}")
+                elif "state" in extracted_locations:
+                    location = extracted_locations["state"]
+                    st.info(f"Using state from highlight action: {location}")
+                elif "zipcode" in extracted_locations:
+                    location = extracted_locations["zipcode"]
+                    st.info(f"Using zipcode from highlight action: {location}")
+                elif "weather_location" in extracted_locations:
+                    location = extracted_locations["weather_location"]
+                    st.info(f"Using weather location: {location}")
 
             try:
                 # Fetch weather data
@@ -273,40 +403,104 @@ def process_map_actions(actions, m):
                 
                 # Location-based filtering
                 if location:
-                    # We'll do a basic filtering based on polygon coordinates
                     try:
-                        # Get state GeoDataFrame to find location
-                        states = get_us_states()
-                        counties = get_us_counties()
+                        # Get geospatial datasets for location matching
+                        states_gdf = get_us_states()
+                        counties_gdf = get_us_counties()
+                        cities = get_major_cities()
                         
-                        # Try to find as state first
-                        state_match = find_region_by_name(states, location)
+                        # Initialize a geometry to use for filtering
+                        filter_geometry = None
+                        location_found = False
                         
-                        if state_match is not None:
-                            # Filter by state bounds
-                            gdf = gdf[gdf.intersects(state_match.unary_union)]
+                        # Function to create a point buffer for a city location
+                        def create_city_buffer(lat, lon, buffer_km=20):
+                            # Convert km to approximate degrees (very rough estimate)
+                            # 1 degree ≈ 111 km at the equator, but varies with latitude
+                            buffer_deg = buffer_km / 111.0
+                            city_point = Point(lon, lat)
+                            return city_point.buffer(buffer_deg)
+                            
+                        # Clean up location string for better matching
+                        clean_location = location.lower()
+                        # Remove common words that might interfere with matching
+                        for word in ["county", "parish", "borough", "city", "town", "township", "state of", "commonwealth of", "pa", "pennsylvania"]:
+                            clean_location = clean_location.replace(word, "").strip()
+                        # Remove any trailing commas and whitespace
+                        clean_location = clean_location.rstrip(",").strip()
+                        
+                        # Log the cleaned location for debugging
+                        st.info(f"Searching for location: '{clean_location}'")
+                        
+                        # 1. Try to match with a state
+                        state_match = find_region_by_name(states_gdf, clean_location)
+                        if state_match is not None and len(state_match) > 0:
+                            st.info(f"Filtering weather data for state: {state_match['state_name'].iloc[0]}")
+                            filter_geometry = state_match.unary_union
+                            location_found = True
+                            
+                        # 2. If not a state, try to match with a county
+                        if not location_found:
+                            county_match = find_region_by_name(counties_gdf, clean_location)
+                            if county_match is not None and len(county_match) > 0:
+                                st.info(f"Filtering weather data for county: {county_match['county_name'].iloc[0]}")
+                                filter_geometry = county_match.unary_union
+                                location_found = True
+                                
+                        # 3. If not a county, try to match with a major city
+                        if not location_found:
+                            # Try exact match first
+                            city_match = cities[cities['name'].str.lower() == location.lower()]
+                            
+                            # If no exact match, try partial match
+                            if len(city_match) == 0:
+                                city_match = cities[cities['name'].str.lower().str.contains(location.lower())]
+                                
+                            if len(city_match) > 0:
+                                city_name = city_match['name'].iloc[0]
+                                city_lat = city_match['lat'].iloc[0]
+                                city_lon = city_match['lon'].iloc[0]
+                                st.info(f"Filtering weather data for city: {city_name}")
+                                
+                                # Create a buffer around the city point
+                                filter_geometry = create_city_buffer(city_lat, city_lon)
+                                location_found = True
+                                
+                        # 4. For PA-specific locations not in datasets but commonly requested
+                        if not location_found:
+                            # Common PA locations with approximate coordinates
+                            pa_locations = {
+                                "philadelphia": (-75.1652, 39.9526),
+                                "pittsburgh": (-79.9959, 40.4406),
+                                "harrisburg": (-76.8867, 40.2732),
+                                "allentown": (-75.4947, 40.6023),
+                                "erie": (-80.0852, 42.1292),
+                                "reading": (-75.9269, 40.3356),
+                                "scranton": (-75.6624, 41.4090),
+                                "lancaster": (-76.3055, 40.0379),
+                                "bethlehem": (-75.3705, 40.6259),
+                                "altoona": (-78.3947, 40.5187)
+                            }
+                            
+                            # Check for match in PA locations dictionary
+                            for city_name, coords in pa_locations.items():
+                                if city_name in location.lower() or location.lower() in city_name:
+                                    st.info(f"Filtering weather data for area: {city_name.title()}")
+                                    lon, lat = coords
+                                    filter_geometry = create_city_buffer(lat, lon)
+                                    location_found = True
+                                    break
+                            
+                        # 5. If we found a location, filter the weather GeoDataFrame
+                        if location_found and filter_geometry is not None:
+                            # Filter the GeoDataFrame to only include polygons that intersect with our area
+                            gdf = gdf[gdf.intersects(filter_geometry)]
+                            
+                            if gdf.empty:
+                                st.warning(f"No weather data available within {location}")
                         else:
-                            # Try as county
-                            county_match = find_region_by_name(counties, location)
-                            if county_match is not None:
-                                # Filter by county bounds
-                                gdf = gdf[gdf.intersects(county_match.unary_union)]
-                            else:
-                                # For cities use a basic point and radius approach
-                                if location.lower() == "philadelphia":
-                                    # Philadelphia coordinates (approx)
-                                    philly_point = Point(-75.1652, 39.9526)
-                                    # Create a buffer around the point (in degrees, approx 20km)
-                                    buffer_distance = 0.2
-                                    philly_buffer = philly_point.buffer(buffer_distance)
-                                    # Filter polygons that intersect with the buffer
-                                    gdf = gdf[gdf.intersects(philly_buffer)]
-                                elif location.lower() == "pittsburgh":
-                                    # Pittsburgh coordinates (approx)
-                                    pitt_point = Point(-79.9959, 40.4406)
-                                    buffer_distance = 0.2
-                                    pitt_buffer = pitt_point.buffer(buffer_distance)
-                                    gdf = gdf[gdf.intersects(pitt_buffer)]
+                            st.warning(f"Could not find location: {location}. Showing all Pennsylvania weather data.")
+                            
                     except Exception as e:
                         st.warning(f"Could not filter by location: {str(e)}")
                 
@@ -337,6 +531,7 @@ def process_map_actions(actions, m):
                     }
                 
                 # Add GeoJSON layer with weather data
+                # Using the built-in tooltip for stability
                 weather_layer = folium.GeoJson(
                     json.loads(gdf.to_json()),
                     name=layer_name,

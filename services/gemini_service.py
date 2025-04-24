@@ -245,15 +245,24 @@ def get_system_prompt():
         ]
     }
     
-    For location-specific queries:
+    For location-specific weather queries, use BOTH a highlight_region AND a show_weather action:
     {
-        "response": "Here is the wind speed forecast for Philadelphia. The map shows higher wind speeds in darker green.",
+        "response": "Here is the wind speed forecast for Crawford County, Pennsylvania. The map shows higher wind speeds in darker green areas.",
         "map_actions": [
+            {
+                "action_type": "highlight_region",
+                "region_name": "Crawford",
+                "region_type": "county",
+                "state_name": "Pennsylvania",
+                "color": "blue",
+                "fill_color": "lightblue",
+                "fill_opacity": 0.3
+            },
             {
                 "action_type": "show_weather",
                 "parameter": "wind_speed",
                 "forecast_date": "12-18-2022",
-                "location": "Philadelphia"
+                "location": "Crawford"
             }
         ]
     }
