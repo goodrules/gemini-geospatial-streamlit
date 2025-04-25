@@ -1,8 +1,15 @@
 - google maps data as the base? (vs openmaps) - not a priority
 - preprocess BQ datasets for use
-    - geospatial core (states, counties, zip, etc) - DONE (zip takes awhile, may want to trim this one)
+    - geospatial core (states, counties, zip, etc) 
+    - DONE (zip takes awhile, may want to trim this one)
     - weathernext
     - fake asset data (customer data)
 - how will we eventually create the logic and display how data will interact?  e.g. if a user asks about potential damage in the next 5 days, the model and app will have to cross weathernext data with asset data, understand damaging weather and the implications on specific locations of the user data
     - i think a good flow for use case 1, is pick 1-2 init times for our data set (these will be our "todays").  the user will ask the app if there are any potential inclement weather events, gemini will pull the weather forecast data, identify bad weather (with some prompt help), and provide both information and the weather overlay on the map
     - once we get this working, we can pull in the fake asset data to the flow.  will the intersection happen in BQ or within the prompt itself?  i can see both, may even be faster in prompt, may be worth a first shot and check for accuracy
+
+
+matt r suggestions:
+- FLIZR downed lines
+- where are my flood areas
+- show line restoration in those flood areas
