@@ -1,0 +1,10 @@
+---
+description: Configuration Management
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+Avoid hardcoding configuration values (like API keys, database URLs, file paths) directly in the code. Suggest using environment variables, configuration files (e.g., YAML, TOML, .env), or dedicated configuration management libraries.
+

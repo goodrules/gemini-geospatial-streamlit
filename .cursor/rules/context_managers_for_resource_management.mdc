@@ -1,0 +1,10 @@
+---
+description: Context Managers for Resource Management
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+Utilize the `with` statement (context managers) for managing resources that need setup and teardown (e.g., file handles, network connections, database sessions, locks) to ensure resources are properly released, even if errors occur.
+

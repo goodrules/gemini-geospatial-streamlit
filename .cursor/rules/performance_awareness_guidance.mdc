@@ -1,0 +1,10 @@
+---
+description: Performance Awareness (Guidance)
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+While correctness and clarity come first, be mindful of performance implications. For potentially performance-sensitive sections, prefer efficient built-in functions and standard library modules. Use appropriate data structures for the task (e.g., sets for fast membership testing). Avoid premature optimization, but suggest more efficient alternatives if an obviously inefficient approach is being considered.
+

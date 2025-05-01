@@ -1,0 +1,10 @@
+---
+description: Error Handling
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+Implement robust and specific error handling. Catch specific exceptions rather than broad `Exception` types unless clearly justified. Raise custom, informative exceptions where appropriate. Use `try...except...else...finally` blocks correctly.
+

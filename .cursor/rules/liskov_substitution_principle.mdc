@@ -1,0 +1,10 @@
+---
+description: Liskov Substitution Principle (LSP)
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+When using inheritance, ensure that instances of a subclass can be substituted for instances of their base class without affecting the correctness of the program. Subclass methods should honor the contracts of the methods they override (e.g., same parameter types, compatible return types, not strengthening preconditions, not weakening postconditions, raising expected exceptions).
+

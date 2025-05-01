@@ -1,0 +1,10 @@
+---
+description: Code Complexity Management
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+Keep functions and methods reasonably short and focused. Aim for low cyclomatic complexity. If a function or method becomes too complex or long, suggest refactoring it into smaller, more manageable units.
+

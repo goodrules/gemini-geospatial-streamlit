@@ -1,0 +1,10 @@
+---
+description: Security Considerations
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+Be mindful of basic security practices. Avoid generating code susceptible to common vulnerabilities like injection attacks (SQL, command), cross-site scripting (XSS) if generating web code, insecure handling of secrets, or using insecure libraries/functions (e.g., `pickle` with untrusted data, weak random number generation for security purposes).
+
