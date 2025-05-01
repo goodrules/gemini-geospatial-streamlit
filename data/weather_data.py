@@ -7,9 +7,11 @@ import json
 import os
 from datetime import datetime, timedelta
 from data.bigquery_client import execute_query
+from dotenv import load_dotenv
 
-#PROJECT_ID = os.environ.get('PROJECT_ID')
-PROJECT_ID = 'mg-ce-demos'  # remove for deployment
+# Load environment variables from .env file
+load_dotenv()
+PROJECT_ID = os.environ.get("PROJECT_ID")
 
 @st.cache_data(ttl=3600)
 def get_weather_forecast_data(init_date):
@@ -35,13 +37,11 @@ def get_weather_forecast_data(init_date):
 
         # Now define the query using the formatted string
         query = f"""
-        WITH state_geom_lookup AS (
+        WITH us_geom_lookup AS (
         SELECT
-            state_geom
+            us_outline_geom
         FROM
-            `bigquery-public-data.geo_us_boundaries.states`
-        WHERE
-            state_name = 'Pennsylvania'
+            `bigquery-public-data.geo_us_boundaries.national_outline`
         )
         SELECT
             weather.init_time,
@@ -52,14 +52,13 @@ def get_weather_forecast_data(init_date):
             f.total_precipitation_6hr as precipitation,
             f.`10m_u_component_of_wind`,
             f.`10m_v_component_of_wind`,
-            SQRT(POW(f.`10m_u_component_of_wind`, 2) + POW(f.`10m_v_component_of_wind`, 2)) AS wind_speed   -- Calculate wind speed from U and V components
+            SQRT(POW(f.`10m_u_component_of_wind`, 2) + POW(f.`10m_v_component_of_wind`, 2)) AS `wind_speed`   -- Calculate wind speed from U and V components
         FROM
-            `{PROJECT_ID}.weathernext_graph_forecasts.59572747_4_0` AS weather,
+            `mg-ce-demos.weathernext_graph_forecasts.59572747_4_0` AS weather,
             UNNEST(weather.forecast) AS f
         JOIN
-            state_geom_lookup AS st ON ST_INTERSECTS(weather.geography, st.state_geom) -- Join only weather points inside state lines
+            us_geom_lookup AS us ON ST_INTERSECTS(weather.geography, us.us_outline_geom) -- Join only weather points inside state lines
         WHERE
-            -- Use the provided init_date, formatted as YYYY-MM-DD string for TIMESTAMP
             weather.init_time = TIMESTAMP("{init_date_str}")
         """
 
@@ -84,7 +83,7 @@ def get_sample_weather_data():
         # Path to sample data file
         sample_file = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "data", "data_samples", "weather", "weather_data_sample.csv"
+            "data", "data_samples", "weather", "weather_data_example.csv"
         )
         
         # Load the sample data

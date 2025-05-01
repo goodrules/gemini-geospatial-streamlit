@@ -132,9 +132,10 @@ def get_system_prompt(selected_init_date):
             }},
             {{
                 "action_type": "show_weather",
-                "parameter": "temperature",  # One of: "temperature", "precipitation", "wind_speed"
-                "forecast_date": "2022-12-18",  # The specific forecast date to display (format: YYYY-MM-DD)
-                "location": "Philadelphia"   # Optional: location name to focus on
+                "parameter": "temperature",        # One of: "temperature", "precipitation", "wind_speed"
+                "forecast_timestamp": "2022-12-18T12:00:00Z", # Optional: Specific forecast timestamp (ISO 8601 format, UTC). Use if user specifies a time. MUST BE 06:00, 12:00, or 18:00 UTC.
+                "forecast_date": "2022-12-18",      # Optional: Specific forecast date (YYYY-MM-DD). Use if user specifies a date but not a specific time.
+                "location": "Philadelphia"         # Optional: location name to focus on
             }}
         ],
         "data": {{
@@ -196,9 +197,9 @@ def get_system_prompt(selected_init_date):
     - "add_heatmap": Add a heatmap from data points
     - "add_line": Add a line connecting two or more points
     - "add_polygon": Add a polygon defined by three or more points
-    - "show_local_dataset": Display a complete local dataset (flood_zones or power_lines)
-    - "show_weather": Display weather forecast data for Pennsylvania
-    - "analyze_wind_risk": Analyze and display areas where power lines may be at risk from high winds
+    - "show_local_dataset": Display a complete local dataset (flood_zones or power_lines in PA)
+    - "show_weather": Display weather forecast data (temperature, precipitation, wind_speed) for a specified area
+    - "analyze_wind_risk": Analyze and display areas where power lines in PA may be at risk from high winds
 
     IMPORTANT: Multiple map actions can be output.
 
@@ -235,28 +236,39 @@ def get_system_prompt(selected_init_date):
     }}
     
     IMPORTANT: When users ask about risk to power lines from high winds, potential power outages due to storms,
-    or if power lines are at risk of damage from weather, use the "analyze_wind_risk" action. For example:
+    or if power lines are at risk of damage from weather, use the "analyze_wind_risk" action.
+    This action analyzes risk at specific forecast timestamps (06:00, 12:00, 18:00 UTC) within the specified number of days.
+    Example:
     {{
-        "response": "I've analyzed whether any power lines in Pennsylvania are at risk from high winds in the forecast period. The analysis identifies both high-risk and moderate-risk areas.", # Simplified comment
+        "response": "I've analyzed wind risk to power lines in Pennsylvania for the next 5 days. The map shows timestamps where high or moderate wind speeds intersect power line buffers.",
         "map_actions": [
             {{
                 "action_type": "analyze_wind_risk",
-                "high_threshold": 16.0,
-                "moderate_threshold": 13.0,
-                "forecast_days": 10
+                "forecast_days": 5,             # Number of days to analyze from the selected init_date
+                "high_threshold": 16.0,         # Optional: Wind speed (m/s) threshold for high risk (default: 16)
+                "moderate_threshold": 13.0      # Optional: Wind speed (m/s) threshold for moderate risk (default: 13)
             }}
         ]
     }}
     
-    IMPORTANT: When users ask about weather, temperature, precipitation, rain, or wind in Pennsylvania,
-    use the "show_weather" action with the appropriate parameter. 
+    IMPORTANT: When users ask about general weather, temperature, precipitation, rain, or wind,
+    use the "show_weather" action with the appropriate parameter. Specify a location if provided by the user.
     
-    You have access to weather forecast data that spans multiple dates, starting from 2022-12-18 (representing "today").
-    Use the YYYY-MM-DD format for `forecast_date`.
+    You have access to weather forecast data for the US that spans multiple dates, starting from 2022-12-18 (representing "today").
+    Use the YYYY-MM-DD format for `forecast_date` and ISO 8601 format (e.g., "YYYY-MM-DDTHH:MM:SSZ") for `forecast_timestamp`.
+
+    IMPORTANT: Weather forecasts are only available at specific times: **06:00 UTC, 12:00 UTC, and 18:00 UTC** for each day.
+    - If the user specifies a time (e.g., "6 PM", "noon", "9 AM"), choose the CLOSEST available forecast timestamp (06:00, 12:00, or 18:00 UTC) and use the `forecast_timestamp` parameter.
+    - Map general times: "morning" maps to "06:00Z", "afternoon" or "noon" maps to "12:00Z", "evening" or "night" maps to "18:00Z". Combine with the correct date (e.g., "{tomorrow_date}T06:00:00Z").
+    - If the user specifies ONLY a date (e.g., "tomorrow", "December 18th") without mentioning a time, use the `forecast_date` parameter (format YYYY-MM-DD). The service will then show the MAX value for that day.
+    - If neither date nor time is specified, omit both `forecast_timestamp` and `forecast_date`. The service will show the MAX value for the LATEST available date.
 
     IMPORTANT: The user has selected '{today_date}' as the current initialization date ('init_date') for the forecast data.
-    Interpret relative date requests based on THIS selected date:
-    - "today": Use "{today_date}"
+    Interpret relative date/time requests based on THIS selected date:
+    - "today" (general): Use `forecast_date`: "{today_date}"
+    - "today morning": Use `forecast_timestamp`: "{today_date}T06:00:00Z"
+    - "today at noon": Use `forecast_timestamp`: "{today_date}T12:00:00Z"
+    - "this evening": Use `forecast_timestamp`: "{today_date}T18:00:00Z"
     - "tomorrow": Use "{tomorrow_date}"
     - "day after tomorrow" or "in two days": Use "{day_after_date}"
     - "in three days": Use "{three_days_date}"
@@ -266,35 +278,57 @@ def get_system_prompt(selected_init_date):
 
     Examples:
     
-    For a general weather overview (today):
+    For a general weather overview for a state (using today's date):
     {{
-        "response": "Here is the current temperature forecast for Pennsylvania. The map shows temperature values across different regions in the state.",
+        "response": "Here is the current temperature forecast for California. The map shows temperature values across different regions.",
         "map_actions": [
             {{
                 "action_type": "show_weather",
                 "parameter": "temperature",
-                "forecast_date": "2022-12-18", # Use YYYY-MM-DD
-                "location": "pennsylvania"
+                "forecast_date": "{today_date}",
+                "location": "California" 
             }}
         ]
     }}
-    
-    For tomorrow's forecast:
+
+    For tomorrow's forecast for a specific city:
     {{
-        "response": "Here is tomorrow's temperature forecast for Pennsylvania. The map shows predicted temperature values for December 19.",
+        "response": "Here is tomorrow's precipitation forecast for Chicago. The map shows predicted precipitation levels.",
         "map_actions": [
+             {{
+                "action_type": "highlight_region",
+                "region_name": "Chicago",
+                "region_type": "city", 
+                "state_name": "Illinois",
+                "color": "green",
+                "fill_color": "lightgreen",
+                "fill_opacity": 0.3
+            }},
             {{
                 "action_type": "show_weather",
-                "parameter": "temperature",
-                "forecast_date": "2022-12-19", # Use YYYY-MM-DD
-                "location": "pennsylvania"
+                "parameter": "precipitation",
+                "forecast_date": "{tomorrow_date}", # User asked for "tomorrow", no specific time -> uses forecast_date for MAX value
+                "location": "Chicago"
             }}
         ]
     }}
-    
-    For location-specific weather queries, use BOTH a highlight_region AND a show_weather action:
+
+    For a specific time tomorrow (mapping "evening" to 18:00):
     {{
-        "response": "Here is the wind speed forecast for Crawford County, Pennsylvania. The map shows higher wind speeds in darker green areas.",
+        "response": "Here is tomorrow evening's temperature forecast for Philadelphia.",
+        "map_actions": [
+             {{
+                "action_type": "show_weather",
+                "parameter": "temperature",
+                "forecast_timestamp": "{tomorrow_date}T18:00:00Z", # User specified "evening", maps to 18:00 UTC
+                "location": "Philadelphia"
+            }}
+        ]
+    }}
+
+    For location-specific weather queries within Pennsylvania (using local data context, defaulting to max for the day):
+    {{
+        "response": "Here is the wind speed forecast for Crawford County, Pennsylvania for today. The map shows the maximum wind speed forecast for each area today.",
         "map_actions": [
             {{
                 "action_type": "highlight_region",
@@ -308,33 +342,34 @@ def get_system_prompt(selected_init_date):
             {{
                 "action_type": "show_weather",
                 "parameter": "wind_speed",
-                "forecast_date": "2022-12-18", # Use YYYY-MM-DD
+                "forecast_date": "{today_date}", # User didn't specify time, defaulting to max for the day
                 "location": "Crawford"
             }}
         ]
     }}
-    
-    For specific future day queries:
+
+    For specific future time queries across a broader area (mapping "afternoon" to 12:00):
     {{
-        "response": "Based on the forecast for Wednesday (Dec 20), there will be increased precipitation in western Pennsylvania.",
+        "response": "Based on the forecast for the afternoon of {day_after_date}, here is the precipitation outlook for the Pacific Northwest.",
         "map_actions": [
             {{
                 "action_type": "show_weather",
                 "parameter": "precipitation",
-                "forecast_date": "2022-12-20" # Use YYYY-MM-DD
+                "forecast_timestamp": "{day_after_date}T12:00:00Z", # User specified "afternoon", maps to 12:00 UTC
+                "location": "Pacific Northwest"
             }}
         ]
     }}
-    
-    For power line risk assessment (with dual risk levels):
+
+    Example for power line risk assessment in PA over 7 days:
     {{
-        "response": "I've analyzed the forecast data and found areas where power lines may be at risk from high and moderate winds in the next 10 days.",
+        "response": "I've analyzed the wind risk to power lines for the next 7 days based on the forecast. Areas and specific timestamps with potential high or moderate risk are highlighted.",
         "map_actions": [
             {{
                 "action_type": "analyze_wind_risk",
-                "high_threshold": 16.0,        # High risk wind speed threshold in m/s (>= 16 m/s is considered dangerous)
-                "moderate_threshold": 13.0,    # Moderate risk wind speed threshold in m/s
-                "forecast_days": 10            # Number of days to look ahead
+                "forecast_days": 7,            # User asked for 7 days
+                "high_threshold": 16.0,
+                "moderate_threshold": 13.0
             }}
         ]
     }}
@@ -368,9 +403,9 @@ def get_system_prompt(selected_init_date):
 def get_generate_content_config():
     """Return the configuration for Gemini content generation"""
     return types.GenerateContentConfig(
-        temperature=0.1,
+        temperature=0.2,
         top_p=0.95,
-        max_output_tokens=4096,
+        max_output_tokens=8192,
         response_modalities = ["TEXT"],
         response_mime_type="application/json",
         safety_settings=[

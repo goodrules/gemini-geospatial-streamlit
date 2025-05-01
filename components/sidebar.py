@@ -1,7 +1,7 @@
 import streamlit as st
 from data.geospatial_data import initialize_app_data
 from utils.streamlit_utils import reset_session_state
-from data.weather_data import get_unique_forecast_dates_str # Re-add import
+# Removed unused import: from data.weather_data import get_unique_forecast_dates_str
 
 def render_sidebar():
     """Render the sidebar with settings and examples"""
@@ -13,8 +13,7 @@ def render_sidebar():
         st.info("Using US States, Counties, and Zip Code data from Google BigQuery public datasets.")
 
         # Weather Init Date Selector
-        # Get available forecast dates based on the selected init_date
-        forecast_date_strs = get_unique_forecast_dates_str(st.session_state.selected_init_date) # Pass init_date
+        # Removed unused variable: forecast_date_strs = get_unique_forecast_dates_str(st.session_state.selected_init_date)
         # Display the selector widget
         with st.expander("Weather Data Settings"):
             today = date.today()
@@ -72,14 +71,14 @@ def render_example_questions():
     ]
     
     weather_examples = [
-        "Show me the temperature forecast for Pennsylvania",
-        "What's the precipitation forecast for Pennsylvania?",
-        "Show the wind speed forecast for PA",
-        "What's the temperature in Philadelphia area?",
-        "Are any power lines at risk of high wind speed in the next 10 days?"
+        "Show the temperature forecast for California",
+        "What is the wind speed forecast for Chicago?",
+        "Display weather data for Texas",
+        "Compare precipitation forecasts for Seattle and Miami",
+        "Are any power lines at risk of high wind speed in the next 10 days in PA?" # Kept specific to PA power lines
     ]
     
-    st.subheader("Geospatial & Weather (Pennsylvania only)")
+    st.subheader("Geospatial & Weather")
     examples = geo_examples + weather_examples
     
     for example in examples:
