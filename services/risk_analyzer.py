@@ -387,10 +387,10 @@ def handle_analyze_wind_risk(action, m):
                     # Format event options for the selector
                     event_options = []
                     for event in events:
-                        date = event["date"]
+                        event_date_str = event["date"] # RENAMED VARIABLE
                         risk_level = event["risk_level"]
                         max_wind = event["max_wind_speed"]
-                        option_text = f"{date} - {risk_level} Risk (max wind: {max_wind:.1f} m/s)"
+                        option_text = f"{event_date_str} - {risk_level} Risk (max wind: {max_wind:.1f} m/s)" # USE RENAMED VARIABLE
                         event_options.append((event["id"], option_text))
                     
                     # Add "All Events" option
