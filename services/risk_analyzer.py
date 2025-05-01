@@ -10,6 +10,7 @@ from data.weather_data import get_weather_forecast_data
 from data.geospatial_data import get_pa_power_lines
 from services.map_core import serialize_geojson
 from services.weather_service import get_weather_color_scale
+from datetime import date # Ensure date is imported
 
 def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderate_threshold=13.0):
     """
@@ -26,21 +27,37 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
         summary: Dictionary with overall risk summary information.
     """
     try:
-        # Ensure forecast_time is datetime
+        # Ensure forecast_time is datetime and process using .loc to avoid warnings
         if 'forecast_time' not in weather_gdf.columns:
              st.error("Weather data for risk analysis missing 'forecast_time'.")
              return None, {"risk_found": False, "message": "Missing 'forecast_time'."}
+
+        # Make a copy to safely modify
+        weather_gdf = weather_gdf.copy()
+
         try:
-            weather_gdf['forecast_time'] = pd.to_datetime(weather_gdf['forecast_time'], errors='coerce')
-            # Ensure UTC
-            if weather_gdf['forecast_time'].dt.tz is None:
-                 weather_gdf['forecast_time'] = weather_gdf['forecast_time'].dt.tz_localize('UTC')
+            # Convert to datetime using .loc
+            weather_gdf.loc[:, 'forecast_time'] = pd.to_datetime(weather_gdf['forecast_time'], errors='coerce')
+
+            # Ensure UTC using .loc
+            is_naive = weather_gdf['forecast_time'].dt.tz is None
+            if is_naive:
+                 weather_gdf.loc[:, 'forecast_time'] = weather_gdf['forecast_time'].dt.tz_localize('UTC', ambiguous='infer') # Handle potential ambiguity
             else:
-                 weather_gdf['forecast_time'] = weather_gdf['forecast_time'].dt.tz_convert('UTC')
-            weather_gdf.dropna(subset=['forecast_time'], inplace=True)
+                 weather_gdf.loc[:, 'forecast_time'] = weather_gdf['forecast_time'].dt.tz_convert('UTC')
+
+            # Drop rows with NaT times (result of coerce errors) - avoid inplace
+            weather_gdf = weather_gdf.dropna(subset=['forecast_time'])
+
         except Exception as e:
             st.error(f"Error processing forecast timestamps for risk analysis: {e}")
             return None, {"risk_found": False, "message": "Timestamp processing error."}
+
+        # Check if empty after processing
+        if weather_gdf.empty:
+            st.warning("[Risk Analysis] No valid weather data remaining after timestamp processing.")
+            return None, {"risk_found": False, "message": "No valid weather data after timestamp processing."}
+
 
         # 1. Filter weather data for winds above moderate threshold
         wind_risk_areas = weather_gdf[weather_gdf['wind_speed'] >= moderate_threshold].copy()
@@ -51,8 +68,8 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
                 "message": f"No areas with wind speeds over {moderate_threshold} m/s found in the forecast period."
             }
         
-        # Classify risk levels
-        wind_risk_areas['risk_level'] = 'moderate'
+        # Classify risk levels using .loc
+        wind_risk_areas.loc[:, 'risk_level'] = 'moderate'
         wind_risk_areas.loc[wind_risk_areas['wind_speed'] >= high_threshold, 'risk_level'] = 'high'
         
         # Count areas in each risk category
@@ -86,9 +103,9 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
         wind_risk_areas_proj = wind_risk_areas.to_crs("EPSG:4326")
         
         # Perform spatial join - find where wind risk areas intersect with power line buffers
-        risk_areas = gpd.sjoin(wind_risk_areas_proj, buffered_lines_gdf, how="inner", predicate="intersects")
-        
-        if risk_areas.empty:
+        joined_areas = gpd.sjoin(wind_risk_areas_proj, buffered_lines_gdf, how="inner", predicate="intersects")
+
+        if joined_areas.empty:
             return wind_risk_areas, {
                 "risk_found": True,
                 "message": f"Found areas with high ({high_risk_count}) and moderate ({moderate_risk_count}) wind risk, but none affect power lines.",
@@ -99,15 +116,20 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
                 "max_wind_speed": wind_risk_areas['wind_speed'].max()
             }
 
+        # Ensure we are working with a copy after the join to avoid SettingWithCopyWarning
+        risk_areas = joined_areas.copy()
+
         # 5. Calculate risk metrics
-        # Add a risk score - percentage scale
+        # Add a risk score - percentage scale using .loc
         max_possible_wind = risk_areas['wind_speed'].max()
         min_threshold = moderate_threshold
-        risk_areas['risk_score'] = ((risk_areas['wind_speed'] - min_threshold) / 
-                                    (max_possible_wind - min_threshold) * 100)
+        # Calculate the score series first
+        score_series = ((risk_areas['wind_speed'] - min_threshold) /
+                        (max_possible_wind - min_threshold) * 100)
+        risk_areas.loc[:, 'risk_score'] = score_series
         
-        # Ensure risk score is between 0-100
-        risk_areas['risk_score'] = risk_areas['risk_score'].clip(0, 100)
+        # Ensure risk score is between 0-100 using .loc
+        risk_areas.loc[:, 'risk_score'] = risk_areas['risk_score'].clip(0, 100)
         
         # 6. Group data into events by date
         events = [] # List to hold summary dictionaries for each event date
@@ -205,13 +227,20 @@ def handle_analyze_wind_risk(action, m):
     # Parameters for risk analysis
     high_threshold = action.get("high_threshold", 16.0)  # High risk threshold (default 16 m/s)
     moderate_threshold = action.get("moderate_threshold", 13.0)  # Moderate risk threshold (default 13 m/s)
-    # Get date from action (expecting "YYYY-MM-DD" list or single string) or session state
-    selected_date_str = st.session_state.get("selected_forecast_date_str") # From UI
-    action_dates = action.get("dates") # From Gemini (could be list or single string)
+    # Get date ONLY from Gemini action (expecting "YYYY-MM-DD" list or single string)
+    action_dates = action.get("dates")
+
+    # Attempt to clear cache to rule out stale data causing opacity issues
+    try:
+        get_weather_forecast_data.clear()
+        st.info("Weather data cache cleared for risk analysis.")
+    except Exception as clear_err:
+        st.warning(f"Could not clear weather data cache: {clear_err}")
 
     try:
-        # 1. Get all weather forecast data
-        weather_df_all = get_weather_forecast_data()
+        # 1. Get all weather forecast data for the selected init_date
+        selected_init_date = st.session_state.get("selected_init_date", date.today()) # Get selected init_date, default to today
+        weather_df_all = get_weather_forecast_data(selected_init_date)
 
         if weather_df_all is None or weather_df_all.empty:
             st.warning("No weather data available for risk analysis")
@@ -241,16 +270,8 @@ def handle_analyze_wind_risk(action, m):
         weather_df_filtered = weather_df_all
         filter_date_msg = "all available dates"
 
-        # Prioritize UI selection
-        if selected_date_str:
-            try:
-                selected_date_obj = pd.to_datetime(selected_date_str).date()
-                weather_df_filtered = weather_df_all[weather_df_all['forecast_time'].dt.date == selected_date_obj].copy()
-                filter_date_msg = f"date {selected_date_str}"
-            except ValueError:
-                 st.error(f"Invalid date format from UI selector: {selected_date_str}. Showing all dates.")
-        # Use Gemini action dates if UI is "All Dates"
-        elif action_dates:
+        # Filter based only on action_dates provided by Gemini
+        if action_dates:
             date_objs_to_filter = []
             if isinstance(action_dates, str): # Single date string
                 try:
@@ -418,72 +439,68 @@ def handle_analyze_wind_risk(action, m):
                         # Combine all events into one GeoDataFrame
                         all_risk_areas = pd.concat([df for df in risk_events.values()])
                         
-                        # Split by risk level
-                        high_risk_df = all_risk_areas[all_risk_areas['risk_level'] == 'high']
-                        moderate_risk_df = all_risk_areas[all_risk_areas['risk_level'] == 'moderate']
+                        # Split by risk level and ensure copies
+                        high_risk_df = all_risk_areas[all_risk_areas['risk_level'] == 'high'].copy()
+                        moderate_risk_df = all_risk_areas[all_risk_areas['risk_level'] == 'moderate'].copy()
                     else:
                         # Get single event data
                         all_risk_areas = risk_events.get(selected_event)
                         if all_risk_areas is not None:
-                            # Split by risk level
-                            high_risk_df = all_risk_areas[all_risk_areas['risk_level'] == 'high']
-                            moderate_risk_df = all_risk_areas[all_risk_areas['risk_level'] == 'moderate']
+                            # Split by risk level and ensure copies
+                            high_risk_df = all_risk_areas[all_risk_areas['risk_level'] == 'high'].copy()
+                            moderate_risk_df = all_risk_areas[all_risk_areas['risk_level'] == 'moderate'].copy()
                         else:
                             st.warning(f"No data available for selected event: {selected_event}")
                             return bounds
-                    # Add formatted time strings for tooltips BEFORE creating GeoJson
+
+                    # Ensure we work on copies to avoid SettingWithCopyWarning before adding forecast_time_str
+                    if not high_risk_df.empty:
+                        high_risk_df = high_risk_df.copy()
+                    if not moderate_risk_df.empty:
+                        moderate_risk_df = moderate_risk_df.copy()
+
+                    # Add formatted time strings for tooltips using .loc
                     if not high_risk_df.empty:
                         try:
-                            high_risk_df['forecast_time_str'] = high_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
-                        except AttributeError:
-                            high_risk_df['forecast_time_str'] = 'Invalid Time'
+                            # Ensure forecast_time is datetime before formatting
+                            if pd.api.types.is_datetime64_any_dtype(high_risk_df['forecast_time']):
+                                high_risk_df.loc[:, 'forecast_time_str'] = high_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+                            else:
+                                high_risk_df.loc[:, 'forecast_time_str'] = 'Invalid Time'
+                        except AttributeError: # Catch potential errors if column is missing or not datetime-like
+                            high_risk_df.loc[:, 'forecast_time_str'] = 'Invalid Time'
                     if not moderate_risk_df.empty:
                          try:
-                            moderate_risk_df['forecast_time_str'] = moderate_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
-                         except AttributeError:
-                            moderate_risk_df['forecast_time_str'] = 'Invalid Time'
-                    # Add formatted time strings for tooltips BEFORE creating GeoJson
-                    if not high_risk_df.empty:
-                        try:
-                            high_risk_df['forecast_time_str'] = high_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
-                        except AttributeError:
-                            high_risk_df['forecast_time_str'] = 'Invalid Time'
-                    if not moderate_risk_df.empty:
-                         try:
-                            moderate_risk_df['forecast_time_str'] = moderate_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
-                         except AttributeError:
-                            moderate_risk_df['forecast_time_str'] = 'Invalid Time'
-                    # Add formatted time strings for tooltips BEFORE creating GeoJson
-                    if not high_risk_df.empty:
-                        try:
-                            high_risk_df['forecast_time_str'] = high_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
-                        except AttributeError:
-                            high_risk_df['forecast_time_str'] = 'Invalid Time'
-                    if not moderate_risk_df.empty:
-                         try:
-                            moderate_risk_df['forecast_time_str'] = moderate_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
-                         except AttributeError:
-                            moderate_risk_df['forecast_time_str'] = 'Invalid Time'
+                            # Ensure forecast_time is datetime before formatting
+                            if pd.api.types.is_datetime64_any_dtype(moderate_risk_df['forecast_time']):
+                                moderate_risk_df.loc[:, 'forecast_time_str'] = moderate_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+                            else:
+                                moderate_risk_df.loc[:, 'forecast_time_str'] = 'Invalid Time'
+                         except AttributeError: # Catch potential errors if column is missing or not datetime-like
+                            moderate_risk_df.loc[:, 'forecast_time_str'] = 'Invalid Time'
+                    # Removed duplicated blocks below
 
                     # Add layers to map
                     # Style function for high risk areas
                     def high_risk_style(feature):
                         risk = feature['properties'].get('risk_score', 0)
                         return {
-                            'fillColor': risk_colormaps['high'](risk),
+                            'fill': True, # Explicitly enable fill
+                            'fillColor': risk_colormaps['high'](risk), # Revert to colormap
                             'color': 'black',
                             'weight': 1,
-                            'fillOpacity': 0.7
+                            'fillOpacity': 0.2 # Keep very transparent
                         }
                         
                     # Style function for moderate risk areas
                     def moderate_risk_style(feature):
                         risk = feature['properties'].get('risk_score', 0)
                         return {
-                            'fillColor': risk_colormaps['moderate'](risk),
+                            'fill': True, # Explicitly enable fill
+                            'fillColor': risk_colormaps['moderate'](risk), # Revert to colormap
                             'color': 'gray',
                             'weight': 1,
-                            'fillOpacity': 0.6
+                            'fillOpacity': 0.2 # Keep very transparent
                         }
                     
                     # Add high risk areas if exist
@@ -491,7 +508,8 @@ def handle_analyze_wind_risk(action, m):
                         high_risk_layer = folium.GeoJson(
                             serialize_geojson(high_risk_df),
                             name="High Wind Risk Areas",
-                            style_function=high_risk_style,
+                            style_function=high_risk_style, # Restore style function
+                            # style={'fillColor': 'red', 'color': 'black', 'weight': 1, 'fillOpacity': 0.2}, # Remove hardcoded style
                             tooltip=folium.GeoJsonTooltip(
                                 fields=['forecast_time_str', 'wind_speed', 'risk_score'], # Use pre-formatted string
                                 aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score'],
@@ -514,7 +532,8 @@ def handle_analyze_wind_risk(action, m):
                         moderate_risk_layer = folium.GeoJson(
                             serialize_geojson(moderate_risk_df),
                             name="Moderate Wind Risk Areas",
-                            style_function=moderate_risk_style,
+                            style_function=moderate_risk_style, # Restore style function
+                            # style={'fillColor': 'orange', 'color': 'gray', 'weight': 1, 'fillOpacity': 0.2}, # Remove hardcoded style
                             tooltip=folium.GeoJsonTooltip(
                                 fields=['forecast_time_str', 'wind_speed', 'risk_score'], # Use pre-formatted string
                                 aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score'],

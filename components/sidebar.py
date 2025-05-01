@@ -1,44 +1,48 @@
 import streamlit as st
 from data.geospatial_data import initialize_app_data
 from utils.streamlit_utils import reset_session_state
-from data.weather_data import get_unique_forecast_dates_str # Use the new function
+from data.weather_data import get_unique_forecast_dates_str # Re-add import
 
 def render_sidebar():
     """Render the sidebar with settings and examples"""
     with st.sidebar:
         st.header("Settings")
-        
+        from datetime import date, timedelta # Import date objects
+
         # Data source info
         st.info("Using US States, Counties, and Zip Code data from Google BigQuery public datasets.")
 
-        # Weather forecast date filter (uses selected_forecast_date_str session state)
-        forecast_date_strs = get_unique_forecast_dates_str()
-        if forecast_date_strs:
-            with st.expander("Weather Data Settings"):
-                # Determine the index for the selectbox based on current session state
-                current_selection = st.session_state.get("selected_forecast_date_str")
-                options = ["All Dates"] + forecast_date_strs
+        # Weather Init Date Selector
+        # Get available forecast dates based on the selected init_date
+        forecast_date_strs = get_unique_forecast_dates_str(st.session_state.selected_init_date) # Pass init_date
+        # Display the selector widget
+        with st.expander("Weather Data Settings"):
+            today = date.today()
+            min_date = date(2022, 1, 1)
+            # Ensure default selected date isn't before min_date
+            default_date = st.session_state.selected_init_date if st.session_state.selected_init_date >= min_date else min_date
+
+            new_init_date = st.date_input(
+                "Select Weather Forecast Init Date:",
+                value=default_date,
+                min_value=min_date,
+                max_value=today, # Can't select future dates for init_date
+                key="init_date_selector"
+            )
+            # Update session state if the date changed
+            if new_init_date != st.session_state.selected_init_date:
+                st.session_state.selected_init_date = new_init_date
+                # Clear weather-related cache when init_date changes
                 try:
-                    index = options.index(current_selection) if current_selection in options else 0
-                except ValueError:
-                    index = 0 # Default to "All Dates" if current selection not found
+                    from data.weather_data import get_weather_forecast_data
+                    get_weather_forecast_data.clear()
+                    st.success(f"Weather data cache cleared for new init date: {new_init_date}")
+                except Exception as e:
+                    st.warning(f"Could not clear weather data cache: {e}")
+                st.rerun() # Rerun to fetch new data based on the selected date
 
-                selected_date_str = st.selectbox(
-                    "Filter by forecast date:",
-                    options=options,
-                    index=index,
-                    key="weather_date_selector" # Add a key for stability
-                )
+            st.caption("Select the initialization date for the weather forecast data (data available back to 2022).")
 
-                # Update session state based on selection
-                if selected_date_str != st.session_state.selected_forecast_date_str:
-                    if selected_date_str != "All Dates":
-                        st.session_state.selected_forecast_date_str = selected_date_str
-                    else:
-                        st.session_state.selected_forecast_date_str = None
-                    # st.rerun() # REMOVED: Let Streamlit handle rerun on widget change
-
-                st.caption("Weather data is available for Pennsylvania only.")
 
         if st.button("Clear Chat"):
             reset_session_state()

@@ -2,6 +2,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 from google.genai import types
+from datetime import date # Import date for default init_date
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,8 +34,9 @@ def init_session_state():
     if "power_lines_loaded" not in st.session_state:
         st.session_state.power_lines_loaded = False
     # Add weather data state variables
-    if "selected_forecast_date_str" not in st.session_state:
-        st.session_state.selected_forecast_date_str = None
+    # Removed 'selected_forecast_date_str' as it's no longer driven by UI
+    if "selected_init_date" not in st.session_state:
+        st.session_state.selected_init_date = date.today() # Default to today
     if "weather_data_loaded" not in st.session_state:
         st.session_state.weather_data_loaded = False
     if "history" not in st.session_state:

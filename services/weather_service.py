@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import geopandas as gpd
+from datetime import date # Ensure date is imported
 from shapely.geometry import shape, Point
 from shapely import wkt # Import wkt loading function
 from branca.colormap import LinearColormap
@@ -169,18 +170,18 @@ def handle_show_weather(action, m):
     
     # Get parameters
     parameter = action.get("parameter", "temperature")  # Default to temperature
-    # Get date from action (from Gemini) or session state (from UI selector)
-    # Prioritize session state if available
-    selected_date_str = st.session_state.get("selected_forecast_date_str")
-    if selected_date_str is None:
-        # Fallback to Gemini action if UI selector is 'All Dates'
-        selected_date_str = action.get("forecast_date") # Expecting "YYYY-MM-DD"
+    # Get date ONLY from Gemini action
+    selected_date_str = action.get("forecast_date") # Expecting "YYYY-MM-DD"
+    # If no date is provided by Gemini, maybe default or show all? Let's default for now if needed.
+    # We'll proceed assuming selected_date_str might be None or a valid date string.
+    # The filtering logic below handles the case where selected_date_str is None (shows all data).
 
     location = action.get("location")  # Optional location filter
 
     try:
-        # 1. Get all weather forecast data
-        weather_df_all = get_weather_forecast_data()
+        # 1. Get all weather forecast data for the selected init_date
+        selected_init_date = st.session_state.get("selected_init_date", date.today()) # Get selected init_date, default to today
+        weather_df_all = get_weather_forecast_data(selected_init_date)
 
         if weather_df_all is None or weather_df_all.empty:
             st.warning("No weather data available")
@@ -417,24 +418,28 @@ def handle_show_weather(action, m):
         # 5. Create display value field with proper units based on parameter
         if parameter == "temperature":
             # Convert from Kelvin to Celsius for display
-            weather_gdf['display_value'] = weather_gdf['temperature'] - 273.15
+            weather_gdf.loc[:, 'display_value'] = weather_gdf['temperature'] - 273.15
             unit = "°C"
         elif parameter == "precipitation":
             # Convert to mm
-            weather_gdf['display_value'] = weather_gdf['precipitation'] * 1000  # m to mm
+            weather_gdf.loc[:, 'display_value'] = weather_gdf['precipitation'] * 1000  # m to mm
             unit = "mm"
         elif parameter == "wind_speed":
-            weather_gdf['display_value'] = weather_gdf['wind_speed']
+            weather_gdf.loc[:, 'display_value'] = weather_gdf['wind_speed']
             unit = "m/s"
         else:
-            weather_gdf['display_value'] = weather_gdf[parameter]
+            weather_gdf.loc[:, 'display_value'] = weather_gdf[parameter]
             unit = ""
 
-        # Add a formatted string column for the tooltip
+        # Add a formatted string column for the tooltip using .loc
         try:
-            weather_gdf['forecast_time_str'] = weather_gdf['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
-        except AttributeError: # Handle potential case where forecast_time is not datetime
-             weather_gdf['forecast_time_str'] = 'Invalid Time'
+            # Ensure forecast_time is datetime before formatting
+            if pd.api.types.is_datetime64_any_dtype(weather_gdf['forecast_time']):
+                weather_gdf.loc[:, 'forecast_time_str'] = weather_gdf['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+            else:
+                weather_gdf.loc[:, 'forecast_time_str'] = 'Invalid Time'
+        except AttributeError: # Catch potential errors if column is missing or not datetime-like
+             weather_gdf.loc[:, 'forecast_time_str'] = 'Invalid Time'
 
         # 6. Create color scale based on parameter
         colormap = get_weather_color_scale(parameter, min_val, max_val)
@@ -451,7 +456,7 @@ def handle_show_weather(action, m):
                 'fillColor': colormap(value),
                 'color': 'gray',
                 'weight': 1,
-                'fillOpacity': 0.7
+                'fillOpacity': 0.5 # Increased transparency
             }
         
         # Create layer name based on available info

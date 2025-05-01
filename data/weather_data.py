@@ -11,11 +11,14 @@ from data.bigquery_client import execute_query
 #PROJECT_ID = os.environ.get('PROJECT_ID')
 PROJECT_ID = 'mg-ce-demos'  # remove for deployment
 
-@st.cache_data(ttl=3600)  # Reduced TTL for faster updates during development
-def get_weather_forecast_data():
+@st.cache_data(ttl=3600)
+def get_weather_forecast_data(init_date):
     """
-    Retrieve weather forecast data from BigQuery.
-    Uses actual weather data from mg-ce-demos.wn_demo.pa_dec_18_2022_summ
+    Retrieve weather forecast data from BigQuery for a specific init_date.
+
+    Args:
+        init_date (datetime.date or str): The initialization date for the forecast.
+                                           If str, expected format 'YYYY-MM-DD'.
     
     This data covers Pennsylvania (PA) only - so it will only work for 
     PA regions and will show "No data" for other states.
@@ -24,6 +27,13 @@ def get_weather_forecast_data():
     forecast_time represents the specific timestamp for which the forecast applies (UTC).
     """
     try:
+        # Format the date argument for the query FIRST
+        if isinstance(init_date, str):
+            init_date_str = init_date
+        else: # Assume datetime.date object
+            init_date_str = init_date.strftime('%Y-%m-%d')
+
+        # Now define the query using the formatted string
         query = f"""
         WITH state_geom_lookup AS (
         SELECT
@@ -49,9 +59,13 @@ def get_weather_forecast_data():
         JOIN
             state_geom_lookup AS st ON ST_INTERSECTS(weather.geography, st.state_geom) -- Join only weather points inside state lines
         WHERE
-            weather.init_time = TIMESTAMP("2022-12-18")
+            -- Use the provided init_date, formatted as YYYY-MM-DD string for TIMESTAMP
+            weather.init_time = TIMESTAMP("{init_date_str}")
         """
+
+        st.info(f"Querying weather data for init_date: {init_date_str}") # Info for debugging
                 
+        # Execute the query (no .format needed anymore)
         forecast_df = execute_query(query)
             
         return forecast_df
@@ -81,14 +95,18 @@ def get_sample_weather_data():
         st.error(f"Error loading sample weather data: {e}")
         return None
 
-def get_weather_forecast_times():
+def get_weather_forecast_times(init_date):
     """
-    Get a list of unique forecast timestamps available in the weather data.
+    Get a list of unique forecast timestamps available in the weather data
+    for a specific initialization date.
+
+    Args:
+        init_date (datetime.date or str): The initialization date for the forecast.
 
     Returns:
         List[pd.Timestamp]: Sorted list of unique pandas Timestamps (UTC).
     """
-    df = get_weather_forecast_data()
+    df = get_weather_forecast_data(init_date) # Pass init_date
     # Ensure forecast_time is datetime before proceeding
     if df is not None and not df.empty and 'forecast_time' in df.columns:
         try:
@@ -108,14 +126,18 @@ def get_weather_forecast_times():
             return []
     return []
 
-def get_unique_forecast_dates_str():
+def get_unique_forecast_dates_str(init_date):
     """
-    Get a list of unique forecast dates (as strings YYYY-MM-DD) from the weather data.
+    Get a list of unique forecast dates (as strings YYYY-MM-DD) from the weather data
+    for a specific initialization date.
+
+    Args:
+        init_date (datetime.date or str): The initialization date for the forecast.
 
     Returns:
         List[str]: Sorted list of unique date strings.
     """
-    timestamps = get_weather_forecast_times()
+    timestamps = get_weather_forecast_times(init_date) # Pass init_date
     if timestamps:
         # Extract date part, format as string, get unique, sort
         date_strs = sorted(list(set([ts.strftime('%Y-%m-%d') for ts in timestamps])))
