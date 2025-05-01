@@ -109,7 +109,7 @@ def get_system_prompt():
             {
                 "action_type": "show_weather",
                 "parameter": "temperature",  # One of: "temperature", "precipitation", "wind_speed"
-                "forecast_date": "12-18-2022",  # The specific forecast date to display (format: MM-DD-YYYY)
+                "forecast_date": "2022-12-18",  # The specific forecast date to display (format: YYYY-MM-DD)
                 "location": "Philadelphia"   # Optional: location name to focus on
             }
         ],
@@ -227,12 +227,15 @@ def get_system_prompt():
     IMPORTANT: When users ask about weather, temperature, precipitation, rain, or wind in Pennsylvania,
     use the "show_weather" action with the appropriate parameter. 
     
-    You have access to weather forecast data that spans multiple dates:
-    - 12-18-2022 represents "today" (init_date)
-    - 10 days representing future forecasts (12-19-2022 through 12-28-2022)
+    You have access to weather forecast data that spans multiple dates, starting from 2022-12-18 (representing "today").
+    Use the YYYY-MM-DD format for `forecast_date`.
     
-    When users ask about "tomorrow's weather", use 12-19-2022 as the forecast_date.
-    For "day after tomorrow" or "in two days", use 12-20-2022, and so on.
+    When users ask about relative dates:
+    - "today": Use "2022-12-18"
+    - "tomorrow": Use "2022-12-19"
+    - "day after tomorrow" or "in two days": Use "2022-12-20"
+    - "Wednesday" (assuming today is Sunday 12/18): Use "2022-12-21"
+    - etc. Be consistent with YYYY-MM-DD format.
     
     Examples:
     
@@ -243,7 +246,7 @@ def get_system_prompt():
             {
                 "action_type": "show_weather",
                 "parameter": "temperature",
-                "forecast_date": "12-18-2022",
+                "forecast_date": "2022-12-18", # Use YYYY-MM-DD
                 "location": "pennsylvania"
             }
         ]
@@ -256,7 +259,7 @@ def get_system_prompt():
             {
                 "action_type": "show_weather",
                 "parameter": "temperature",
-                "forecast_date": "12-19-2022",
+                "forecast_date": "2022-12-19", # Use YYYY-MM-DD
                 "location": "pennsylvania"
             }
         ]
@@ -278,7 +281,7 @@ def get_system_prompt():
             {
                 "action_type": "show_weather",
                 "parameter": "wind_speed",
-                "forecast_date": "12-18-2022",
+                "forecast_date": "2022-12-18", # Use YYYY-MM-DD
                 "location": "Crawford"
             }
         ]
@@ -291,7 +294,7 @@ def get_system_prompt():
             {
                 "action_type": "show_weather",
                 "parameter": "precipitation",
-                "forecast_date": "12-20-2022"
+                "forecast_date": "2022-12-20" # Use YYYY-MM-DD
             }
         ]
     }
@@ -388,4 +391,4 @@ def get_gemini_response(prompt, history):
         return json.dumps({
             "response": f"Error: {str(e)}",
             "map_actions": []
-        }) 
+        })

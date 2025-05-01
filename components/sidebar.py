@@ -1,7 +1,7 @@
 import streamlit as st
 from data.geospatial_data import initialize_app_data
 from utils.streamlit_utils import reset_session_state
-from data.weather_data import get_weather_forecast_dates
+from data.weather_data import get_unique_forecast_dates_str # Use the new function
 
 def render_sidebar():
     """Render the sidebar with settings and examples"""
@@ -10,27 +10,36 @@ def render_sidebar():
         
         # Data source info
         st.info("Using US States, Counties, and Zip Code data from Google BigQuery public datasets.")
-        
-        # Weather forecast date filter
-        if "weather_forecast_date" not in st.session_state:
-            st.session_state.weather_forecast_date = None
-            
-        forecast_dates = get_weather_forecast_dates()
-        if forecast_dates:
+
+        # Weather forecast date filter (uses selected_forecast_date_str session state)
+        forecast_date_strs = get_unique_forecast_dates_str()
+        if forecast_date_strs:
             with st.expander("Weather Data Settings"):
-                selected_date = st.selectbox(
+                # Determine the index for the selectbox based on current session state
+                current_selection = st.session_state.get("selected_forecast_date_str")
+                options = ["All Dates"] + forecast_date_strs
+                try:
+                    index = options.index(current_selection) if current_selection in options else 0
+                except ValueError:
+                    index = 0 # Default to "All Dates" if current selection not found
+
+                selected_date_str = st.selectbox(
                     "Filter by forecast date:",
-                    options=["All Dates"] + forecast_dates,
-                    index=0
+                    options=options,
+                    index=index,
+                    key="weather_date_selector" # Add a key for stability
                 )
-                
-                if selected_date != "All Dates":
-                    st.session_state.weather_forecast_date = selected_date
-                else:
-                    st.session_state.weather_forecast_date = None
-                    
+
+                # Update session state based on selection
+                if selected_date_str != st.session_state.selected_forecast_date_str:
+                    if selected_date_str != "All Dates":
+                        st.session_state.selected_forecast_date_str = selected_date_str
+                    else:
+                        st.session_state.selected_forecast_date_str = None
+                    # st.rerun() # REMOVED: Let Streamlit handle rerun on widget change
+
                 st.caption("Weather data is available for Pennsylvania only.")
-        
+
         if st.button("Clear Chat"):
             reset_session_state()
             st.rerun()
@@ -85,4 +94,4 @@ def render_example_questions():
                 except json.JSONDecodeError:
                     ai_message = "I encountered an error processing your request. Please try again."
             st.session_state.messages.append({"role": "assistant", "content": ai_message})
-            st.rerun() 
+            st.rerun()

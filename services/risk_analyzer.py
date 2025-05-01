@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import geopandas as gpd
 from shapely.geometry import shape
+from shapely import wkt # Ensure wkt is imported
 import folium
 from branca.colormap import LinearColormap
 from data.weather_data import get_weather_forecast_data
@@ -21,10 +22,26 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
         moderate_threshold: Moderate risk wind speed threshold in m/s (default: 13.0 m/s)
         
     Returns:
-        risk_events: List of wind risk events
-        summary: Dictionary with risk summary information
+        risk_events: Dictionary mapping event IDs to GeoDataFrames of risk areas for that event.
+        summary: Dictionary with overall risk summary information.
     """
     try:
+        # Ensure forecast_time is datetime
+        if 'forecast_time' not in weather_gdf.columns:
+             st.error("Weather data for risk analysis missing 'forecast_time'.")
+             return None, {"risk_found": False, "message": "Missing 'forecast_time'."}
+        try:
+            weather_gdf['forecast_time'] = pd.to_datetime(weather_gdf['forecast_time'], errors='coerce')
+            # Ensure UTC
+            if weather_gdf['forecast_time'].dt.tz is None:
+                 weather_gdf['forecast_time'] = weather_gdf['forecast_time'].dt.tz_localize('UTC')
+            else:
+                 weather_gdf['forecast_time'] = weather_gdf['forecast_time'].dt.tz_convert('UTC')
+            weather_gdf.dropna(subset=['forecast_time'], inplace=True)
+        except Exception as e:
+            st.error(f"Error processing forecast timestamps for risk analysis: {e}")
+            return None, {"risk_found": False, "message": "Timestamp processing error."}
+
         # 1. Filter weather data for winds above moderate threshold
         wind_risk_areas = weather_gdf[weather_gdf['wind_speed'] >= moderate_threshold].copy()
         
@@ -52,10 +69,11 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
                 "message": f"Found areas with high ({high_risk_count}) and moderate ({moderate_risk_count}) wind risk, but no power line data available for detailed assessment.",
                 "high_risk_areas": high_risk_count,
                 "moderate_risk_areas": moderate_risk_count,
-                "affected_dates": sorted(wind_risk_areas['forecast_date'].unique().tolist()),
+                # Get unique dates as strings
+                "affected_dates": sorted(list(set(wind_risk_areas['forecast_time'].dt.strftime('%Y-%m-%d').unique()))),
                 "max_wind_speed": wind_risk_areas['wind_speed'].max()
             }
-            
+
         # 3. Create a buffer around power lines (approximately 1km buffer)
         # Convert to a projected CRS for accurate buffering
         power_lines_proj = power_lines_gdf.to_crs("EPSG:3857")  # Web Mercator
@@ -76,10 +94,11 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
                 "message": f"Found areas with high ({high_risk_count}) and moderate ({moderate_risk_count}) wind risk, but none affect power lines.",
                 "high_risk_areas": high_risk_count,
                 "moderate_risk_areas": moderate_risk_count,
-                "affected_dates": sorted(wind_risk_areas['forecast_date'].unique().tolist()),
+                 # Get unique dates as strings
+                "affected_dates": sorted(list(set(wind_risk_areas['forecast_time'].dt.strftime('%Y-%m-%d').unique()))),
                 "max_wind_speed": wind_risk_areas['wind_speed'].max()
             }
-                   
+
         # 5. Calculate risk metrics
         # Add a risk score - percentage scale
         max_possible_wind = risk_areas['wind_speed'].max()
@@ -91,13 +110,18 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
         risk_areas['risk_score'] = risk_areas['risk_score'].clip(0, 100)
         
         # 6. Group data into events by date
-        events = []
-        risk_events = {}
-        
+        events = [] # List to hold summary dictionaries for each event date
+        risk_events = {} # Dict to hold GeoDataFrames for each event date, keyed by event_id
+
+        # Get unique dates (as date objects) to iterate through
+        unique_dates = sorted(risk_areas['forecast_time'].dt.date.unique())
+
         # Process each date as a potential event
-        for date in sorted(risk_areas['forecast_date'].unique()):
-            date_areas = risk_areas[risk_areas['forecast_date'] == date]
-            
+        for current_date_obj in unique_dates:
+            # Filter risk_areas for the current date
+            date_areas = risk_areas[risk_areas['forecast_time'].dt.date == current_date_obj].copy()
+            current_date_str = current_date_obj.strftime('%Y-%m-%d') # String for event ID and summary
+
             # Skip if no data for this date
             if date_areas.empty:
                 continue
@@ -109,14 +133,14 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
             # Skip if no significant risk
             if high_count + moderate_count == 0:
                 continue
-                
-            # Create event ID
-            event_id = f"wind_event_{date.replace('-', '')}"
-            
+
+            # Create event ID using the date string
+            event_id = f"wind_event_{current_date_str.replace('-', '')}"
+
             # Create a summary for this event
             event_summary = {
                 "id": event_id,
-                "date": date,
+                "date": current_date_str, # Store date as string
                 "high_risk_count": high_count,
                 "moderate_risk_count": moderate_count,
                 "max_wind_speed": date_areas['wind_speed'].max(),
@@ -138,11 +162,12 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
         
         # Find date with highest risk
         if events:
-            highest_risk_event = max(events, key=lambda x: x['high_risk_count'] if x['high_risk_count'] > 0 else x['moderate_risk_count']/2)
-            highest_risk_date = highest_risk_event['date']
+            # Find event with the most high risk areas, break ties with moderate risk areas
+            highest_risk_event = max(events, key=lambda x: (x['high_risk_count'], x['moderate_risk_count']))
+            highest_risk_date_str = highest_risk_event['date'] # Date string
         else:
-            highest_risk_date = "None"
-        
+            highest_risk_date_str = "None"
+
         summary = {
             "risk_found": len(events) > 0,
             "message": f"Found {len(events)} potential wind events affecting power lines.",
@@ -151,7 +176,7 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
             "high_risk_areas": total_high_risk,
             "moderate_risk_areas": total_moderate_risk,
             "affected_power_lines_km": total_affected_km,
-            "highest_risk_date": highest_risk_date,
+            "highest_risk_date": highest_risk_date_str, # Store date string
             "max_wind_speed": max_wind_overall
         }
         
@@ -180,50 +205,126 @@ def handle_analyze_wind_risk(action, m):
     # Parameters for risk analysis
     high_threshold = action.get("high_threshold", 16.0)  # High risk threshold (default 16 m/s)
     moderate_threshold = action.get("moderate_threshold", 13.0)  # Moderate risk threshold (default 13 m/s)
-    dates = action.get("dates", [])  # Optional list of specific dates to check
-    forecast_days = action.get("forecast_days", 10)  # Number of days to check
-    
+    # Get date from action (expecting "YYYY-MM-DD" list or single string) or session state
+    selected_date_str = st.session_state.get("selected_forecast_date_str") # From UI
+    action_dates = action.get("dates") # From Gemini (could be list or single string)
+
     try:
-        # 1. Get weather forecast data
-        weather_df = get_weather_forecast_data()
-        
-        if weather_df is None or weather_df.empty:
+        # 1. Get all weather forecast data
+        weather_df_all = get_weather_forecast_data()
+
+        if weather_df_all is None or weather_df_all.empty:
             st.warning("No weather data available for risk analysis")
             return bounds
-            
-        # 2. Filter by dates if specified
-        if dates and isinstance(dates, list) and len(dates) > 0:
-            weather_df = weather_df[weather_df["forecast_date"].isin(dates)]
-        else:
-            # Use all available dates within forecast_days
-            all_dates = sorted(weather_df["forecast_date"].unique().tolist())
-            # Use first date as reference (init_date)
-            base_date = all_dates[0] if all_dates else None
-            
-            if base_date is not None and len(all_dates) > 1:
-                # Get dates within the forecast period
-                dates_to_use = all_dates[:min(forecast_days, len(all_dates))]
-                weather_df = weather_df[weather_df["forecast_date"].isin(dates_to_use)]
-        
-        if weather_df.empty:
+
+        # Ensure forecast_time is datetime
+        if 'forecast_time' not in weather_df_all.columns:
+             st.error("Weather data for risk analysis missing 'forecast_time'.")
+             return bounds
+        try:
+            weather_df_all['forecast_time'] = pd.to_datetime(weather_df_all['forecast_time'], errors='coerce')
+            # Ensure UTC
+            if weather_df_all['forecast_time'].dt.tz is None:
+                 weather_df_all['forecast_time'] = weather_df_all['forecast_time'].dt.tz_localize('UTC')
+            else:
+                 weather_df_all['forecast_time'] = weather_df_all['forecast_time'].dt.tz_convert('UTC')
+            weather_df_all.dropna(subset=['forecast_time'], inplace=True)
+        except Exception as e:
+            st.error(f"Error processing forecast timestamps for risk analysis: {e}")
+            return bounds
+
+        if weather_df_all.empty:
+            st.warning("No valid weather timestamps found for risk analysis.")
+            return bounds
+
+        # 2. Determine dates to filter by
+        weather_df_filtered = weather_df_all
+        filter_date_msg = "all available dates"
+
+        # Prioritize UI selection
+        if selected_date_str:
+            try:
+                selected_date_obj = pd.to_datetime(selected_date_str).date()
+                weather_df_filtered = weather_df_all[weather_df_all['forecast_time'].dt.date == selected_date_obj].copy()
+                filter_date_msg = f"date {selected_date_str}"
+            except ValueError:
+                 st.error(f"Invalid date format from UI selector: {selected_date_str}. Showing all dates.")
+        # Use Gemini action dates if UI is "All Dates"
+        elif action_dates:
+            date_objs_to_filter = []
+            if isinstance(action_dates, str): # Single date string
+                try:
+                    date_objs_to_filter.append(pd.to_datetime(action_dates).date())
+                    filter_date_msg = f"date {action_dates}"
+                except ValueError:
+                     st.error(f"Invalid date format from action: {action_dates}. Showing all dates.")
+            elif isinstance(action_dates, list): # List of date strings
+                valid_dates = []
+                for d_str in action_dates:
+                    try:
+                        date_objs_to_filter.append(pd.to_datetime(d_str).date())
+                        valid_dates.append(d_str)
+                    except ValueError:
+                         st.warning(f"Ignoring invalid date format in list from action: {d_str}")
+                if valid_dates:
+                    weather_df_filtered = weather_df_all[weather_df_all['forecast_time'].dt.date.isin(date_objs_to_filter)].copy()
+                    filter_date_msg = f"dates: {', '.join(valid_dates)}"
+                else:
+                     st.error("No valid dates provided in list from action. Showing all dates.")
+            else:
+                 st.warning("Unexpected format for 'dates' parameter in action. Showing all dates.")
+
+        if weather_df_filtered.empty:
             st.warning("No weather data available for the specified dates")
             return bounds
-        
-        # 3. Convert to GeoDataFrame
+
+        # 3. Convert filtered data to GeoDataFrame, handling WKT geometry errors robustly
+
+        # Pre-filter for potentially valid polygon strings
+        valid_polygon_mask = weather_df_filtered['geography_polygon'].notna() & \
+                             weather_df_filtered['geography_polygon'].apply(lambda x: isinstance(x, str) and x.strip() != '')
+        weather_df_potential = weather_df_filtered[valid_polygon_mask].copy()
+
+        if weather_df_potential.empty:
+            st.warning("[Risk Analysis] No rows with potentially valid polygon strings found in weather data.")
+            return bounds
+
         geometries = []
-        for _, row in weather_df.iterrows():
-            # Parse GeoJSON polygon string
+        valid_indices = []
+        shape_errors = 0
+
+        # Iterate only over rows with potential polygons
+        for index, row in weather_df_potential.iterrows():
+            polygon_wkt = row['geography_polygon'] # Expecting WKT string
             try:
-                geojson = json.loads(row['geography_polygon'])
-                polygon = shape(geojson)
-                geometries.append(polygon)
-            except Exception as e:
-                st.error(f"Error parsing polygon: {e}")
-                continue
-        
-        # Create GeoDataFrame with weather data
+                # Use shapely.wkt.loads to parse the WKT string directly
+                polygon = wkt.loads(polygon_wkt)
+                if polygon.is_valid: # Check validity after loading
+                    geometries.append(polygon)
+                    valid_indices.append(index) # Store index of successfully processed row
+                else:
+                    shape_errors += 1
+                    # Optional: st.warning(f"Invalid geometry created from WKT for risk analysis at index {index}")
+            except Exception as wkt_error: # Catch errors during WKT loading or validation
+                shape_errors += 1 # Increment error count
+                # Optional: st.warning(f"WKT processing error for risk analysis at index {index}: {wkt_error}")
+                pass # Skip this row
+
+        # Report errors if any occurred
+        if shape_errors > 0:
+             st.warning(f"[Risk Analysis] Skipped {shape_errors} rows due to invalid/failed WKT geometry processing.")
+
+        # If no valid geometries were created after parsing
+        if not valid_indices:
+             st.warning("[Risk Analysis] Failed to create any valid geometries from the available polygon data.")
+             return bounds
+
+        # Select the original data rows that corresponded to valid geometries
+        weather_df_valid = weather_df_potential.loc[valid_indices]
+
+        # Create the GeoDataFrame - lengths should now match
         weather_gdf = gpd.GeoDataFrame(
-            weather_df,
+            weather_df_valid, # Use the filtered DataFrame with valid geometries
             geometry=geometries,
             crs="EPSG:4326"
         )
@@ -232,9 +333,9 @@ def handle_analyze_wind_risk(action, m):
         power_lines_gdf = get_pa_power_lines()
         
         # 5. Analyze wind risk
-        st.info(f"Analyzing wind risk to power lines (high: {high_threshold} m/s, moderate: {moderate_threshold} m/s)...")
+        st.info(f"Analyzing wind risk ({filter_date_msg}) to power lines (high: {high_threshold} m/s, moderate: {moderate_threshold} m/s)...")
         risk_events, risk_summary = analyze_wind_risk(
-            weather_gdf, 
+            weather_gdf, # Pass the potentially date-filtered GDF
             power_lines_gdf,
             high_threshold,
             moderate_threshold
@@ -330,7 +431,40 @@ def handle_analyze_wind_risk(action, m):
                         else:
                             st.warning(f"No data available for selected event: {selected_event}")
                             return bounds
-                    
+                    # Add formatted time strings for tooltips BEFORE creating GeoJson
+                    if not high_risk_df.empty:
+                        try:
+                            high_risk_df['forecast_time_str'] = high_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+                        except AttributeError:
+                            high_risk_df['forecast_time_str'] = 'Invalid Time'
+                    if not moderate_risk_df.empty:
+                         try:
+                            moderate_risk_df['forecast_time_str'] = moderate_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+                         except AttributeError:
+                            moderate_risk_df['forecast_time_str'] = 'Invalid Time'
+                    # Add formatted time strings for tooltips BEFORE creating GeoJson
+                    if not high_risk_df.empty:
+                        try:
+                            high_risk_df['forecast_time_str'] = high_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+                        except AttributeError:
+                            high_risk_df['forecast_time_str'] = 'Invalid Time'
+                    if not moderate_risk_df.empty:
+                         try:
+                            moderate_risk_df['forecast_time_str'] = moderate_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+                         except AttributeError:
+                            moderate_risk_df['forecast_time_str'] = 'Invalid Time'
+                    # Add formatted time strings for tooltips BEFORE creating GeoJson
+                    if not high_risk_df.empty:
+                        try:
+                            high_risk_df['forecast_time_str'] = high_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+                        except AttributeError:
+                            high_risk_df['forecast_time_str'] = 'Invalid Time'
+                    if not moderate_risk_df.empty:
+                         try:
+                            moderate_risk_df['forecast_time_str'] = moderate_risk_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+                         except AttributeError:
+                            moderate_risk_df['forecast_time_str'] = 'Invalid Time'
+
                     # Add layers to map
                     # Style function for high risk areas
                     def high_risk_style(feature):
@@ -359,9 +493,10 @@ def handle_analyze_wind_risk(action, m):
                             name="High Wind Risk Areas",
                             style_function=high_risk_style,
                             tooltip=folium.GeoJsonTooltip(
-                                fields=['forecast_date', 'wind_speed', 'risk_score'],
-                                aliases=['Date', 'Wind Speed (m/s)', 'Risk Score'],
-                                localize=True,
+                                fields=['forecast_time_str', 'wind_speed', 'risk_score'], # Use pre-formatted string
+                                aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score'],
+                                # fmt removed
+                                localize=False,
                                 sticky=True
                             )
                         ).add_to(m)
@@ -381,9 +516,10 @@ def handle_analyze_wind_risk(action, m):
                             name="Moderate Wind Risk Areas",
                             style_function=moderate_risk_style,
                             tooltip=folium.GeoJsonTooltip(
-                                fields=['forecast_date', 'wind_speed', 'risk_score'],
-                                aliases=['Date', 'Wind Speed (m/s)', 'Risk Score'],
-                                localize=True,
+                                fields=['forecast_time_str', 'wind_speed', 'risk_score'], # Use pre-formatted string
+                                aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score'],
+                                # fmt removed
+                                localize=False,
                                 sticky=True
                             )
                         ).add_to(m)
@@ -416,4 +552,4 @@ def handle_analyze_wind_risk(action, m):
     except Exception as e:
         st.error(f"Error analyzing wind risk: {str(e)}")
         
-    return bounds 
+    return bounds

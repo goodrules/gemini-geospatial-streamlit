@@ -33,8 +33,8 @@ def init_session_state():
     if "power_lines_loaded" not in st.session_state:
         st.session_state.power_lines_loaded = False
     # Add weather data state variables
-    if "weather_forecast_date" not in st.session_state:
-        st.session_state.weather_forecast_date = None
+    if "selected_forecast_date_str" not in st.session_state:
+        st.session_state.selected_forecast_date_str = None
     if "weather_data_loaded" not in st.session_state:
         st.session_state.weather_data_loaded = False
     if "history" not in st.session_state:
