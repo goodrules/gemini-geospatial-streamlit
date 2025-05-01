@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 import json
 import geopandas as gpd
+from datetime import date # Ensure date is imported
 from shapely.geometry import shape, Point
+from shapely import wkt # Import wkt loading function
 from branca.colormap import LinearColormap
 import folium
 from data.weather_data import get_weather_forecast_data
@@ -86,9 +88,9 @@ def create_weather_tooltip(properties, parameter=None):
             Weather Forecast
         </h4>
         {location_info}
-        <p><b>Date:</b> {properties.get("forecast_date", "N/A")}</p>
+        <p><b>Time (UTC):</b> {pd.to_datetime(properties.get("forecast_time")).strftime('%Y-%m-%d %H:%M') if properties.get("forecast_time") else "N/A"}</p>
     """
-    
+
     # Add weather data based on what's available
     if temp_f is not None:
         highlight = ' style="background-color: #FFFF99;"' if parameter == "temperature" else ""
@@ -168,47 +170,121 @@ def handle_show_weather(action, m):
     
     # Get parameters
     parameter = action.get("parameter", "temperature")  # Default to temperature
-    forecast_date = action.get("forecast_date", "12-18-2022")  # Default to available date
+    # Get date ONLY from Gemini action
+    selected_date_str = action.get("forecast_date") # Expecting "YYYY-MM-DD"
+    # If no date is provided by Gemini, maybe default or show all? Let's default for now if needed.
+    # We'll proceed assuming selected_date_str might be None or a valid date string.
+    # The filtering logic below handles the case where selected_date_str is None (shows all data).
+
     location = action.get("location")  # Optional location filter
-    
+
     try:
-        # 1. Get weather forecast data
-        weather_df = get_weather_forecast_data()
-        
-        if weather_df is None or weather_df.empty:
+        # 1. Get all weather forecast data for the selected init_date
+        selected_init_date = st.session_state.get("selected_init_date", date.today()) # Get selected init_date, default to today
+        weather_df_all = get_weather_forecast_data(selected_init_date)
+
+        if weather_df_all is None or weather_df_all.empty:
             st.warning("No weather data available")
             return bounds
-        
-        # Store min/max values for color scale (from whole dataset)
-        min_val = weather_df[parameter].min()
-        max_val = weather_df[parameter].max()
-        
-        # 2. Filter by forecast date
-        weather_df = weather_df[weather_df["forecast_date"] == forecast_date]
-        
-        if weather_df.empty:
-            st.warning(f"No weather data available for date: {forecast_date}")
+
+        # Ensure forecast_time is datetime before proceeding
+        if 'forecast_time' not in weather_df_all.columns:
+             st.error("Weather data is missing the 'forecast_time' column.")
+             return bounds
+        try:
+            weather_df_all['forecast_time'] = pd.to_datetime(weather_df_all['forecast_time'], errors='coerce')
+            # Ensure UTC
+            if weather_df_all['forecast_time'].dt.tz is None:
+                 weather_df_all['forecast_time'] = weather_df_all['forecast_time'].dt.tz_localize('UTC')
+            else:
+                 weather_df_all['forecast_time'] = weather_df_all['forecast_time'].dt.tz_convert('UTC')
+            weather_df_all.dropna(subset=['forecast_time'], inplace=True)
+        except Exception as e:
+            st.error(f"Error processing forecast timestamps in weather data: {e}")
             return bounds
-        
-        # 3. Convert to GeoDataFrame
-        geometries = []
-        for _, row in weather_df.iterrows():
-            # Parse GeoJSON polygon string
+
+        if weather_df_all.empty:
+            st.warning("No valid weather timestamps found after processing.")
+            return bounds
+
+        # Store min/max values for color scale (use the full dataset before date filtering)
+        if parameter not in weather_df_all.columns:
+             st.error(f"Selected parameter '{parameter}' not found in weather data.")
+             return bounds
+        min_val = weather_df_all[parameter].min()
+        max_val = weather_df_all[parameter].max()
+
+        # 2. Filter by forecast date string (if selected)
+        weather_df_filtered = weather_df_all
+        if selected_date_str:
             try:
-                geojson = json.loads(row['geography_polygon'])
-                polygon = shape(geojson)
-                geometries.append(polygon)
-            except Exception as e:
-                st.error(f"Error parsing polygon: {e}")
-                continue
-        
-        # Create GeoDataFrame with weather data
+                # Convert selected string date to date object for comparison
+                selected_date_obj = pd.to_datetime(selected_date_str).date()
+                # Filter based on the date part of the timestamp column
+                weather_df_filtered = weather_df_all[weather_df_all['forecast_time'].dt.date == selected_date_obj].copy()
+            except ValueError:
+                st.error(f"Invalid date format provided: {selected_date_str}. Please use YYYY-MM-DD.")
+                return bounds
+
+        if weather_df_filtered.empty:
+            date_msg = f" for date: {selected_date_str}" if selected_date_str else ""
+            st.warning(f"No weather data available{date_msg}")
+            return bounds
+
+        # 3. Convert filtered data to GeoDataFrame, handling geometry errors robustly
+
+        # Pre-filter for potentially valid polygon strings
+        valid_polygon_mask = weather_df_filtered['geography_polygon'].notna() & \
+                             weather_df_filtered['geography_polygon'].apply(lambda x: isinstance(x, str) and x.strip() != '')
+        weather_df_potential = weather_df_filtered[valid_polygon_mask].copy()
+
+        if weather_df_potential.empty:
+            st.warning("No rows with potentially valid polygon strings found in the filtered weather data.")
+            return bounds
+
+        geometries = []
+        valid_indices = []
+        parse_errors = 0
+        shape_errors = 0
+
+        # Iterate only over rows with potential polygons
+        for index, row in weather_df_potential.iterrows():
+            polygon_wkt = row['geography_polygon'] # Expecting WKT string
+            try:
+                # Use shapely.wkt.loads to parse the WKT string directly
+                polygon = wkt.loads(polygon_wkt)
+                if polygon.is_valid: # Check validity after loading
+                    geometries.append(polygon)
+                    valid_indices.append(index) # Store index of successfully processed row
+                else:
+                    shape_errors += 1
+                    # Optional: st.warning(f"Invalid geometry created from WKT for index {index}")
+            except Exception as wkt_error: # Catch errors during WKT loading or validation
+                shape_errors += 1 # Increment error count
+                # Display the failing WKT string and the error for diagnosis
+                st.warning(f"WKT processing error for index {index}: {wkt_error}. Failing WKT: '{polygon_wkt[:100]}...'") # Show start of WKT
+                pass # Add pass to make the except block valid
+
+        # Report errors if any occurred
+        if shape_errors > 0:
+             st.warning(f"Skipped {shape_errors} rows due to invalid/failed WKT geometry processing.") # Corrected message
+
+        # If no valid geometries were created after parsing
+        if not valid_indices:
+             st.warning("Failed to create any valid geometries from the available polygon data.")
+             return bounds
+
+        # Select the original data rows that corresponded to valid geometries
+        weather_df_valid = weather_df_potential.loc[valid_indices]
+
+        # Create the GeoDataFrame - lengths should now match
         weather_gdf = gpd.GeoDataFrame(
-            weather_df,
-            geometry=geometries,
+            weather_df_valid,
+            geometry=geometries, # List of valid shapely geometries
             crs="EPSG:4326"
         )
-        
+
+        # Double-check if GeoDataFrame is empty after creation (shouldn't be if valid_indices is not empty)
         if weather_gdf.empty:
             st.warning("Could not create geometry from weather data")
             return bounds
@@ -342,19 +418,29 @@ def handle_show_weather(action, m):
         # 5. Create display value field with proper units based on parameter
         if parameter == "temperature":
             # Convert from Kelvin to Celsius for display
-            weather_gdf['display_value'] = weather_gdf['temperature'] - 273.15
+            weather_gdf.loc[:, 'display_value'] = weather_gdf['temperature'] - 273.15
             unit = "°C"
         elif parameter == "precipitation":
             # Convert to mm
-            weather_gdf['display_value'] = weather_gdf['precipitation'] * 1000  # m to mm
+            weather_gdf.loc[:, 'display_value'] = weather_gdf['precipitation'] * 1000  # m to mm
             unit = "mm"
         elif parameter == "wind_speed":
-            weather_gdf['display_value'] = weather_gdf['wind_speed']
+            weather_gdf.loc[:, 'display_value'] = weather_gdf['wind_speed']
             unit = "m/s"
         else:
-            weather_gdf['display_value'] = weather_gdf[parameter]
+            weather_gdf.loc[:, 'display_value'] = weather_gdf[parameter]
             unit = ""
-        
+
+        # Add a formatted string column for the tooltip using .loc
+        try:
+            # Ensure forecast_time is datetime before formatting
+            if pd.api.types.is_datetime64_any_dtype(weather_gdf['forecast_time']):
+                weather_gdf.loc[:, 'forecast_time_str'] = weather_gdf['forecast_time'].dt.strftime('%Y-%m-%d %H:%M')
+            else:
+                weather_gdf.loc[:, 'forecast_time_str'] = 'Invalid Time'
+        except AttributeError: # Catch potential errors if column is missing or not datetime-like
+             weather_gdf.loc[:, 'forecast_time_str'] = 'Invalid Time'
+
         # 6. Create color scale based on parameter
         colormap = get_weather_color_scale(parameter, min_val, max_val)
         
@@ -370,24 +456,25 @@ def handle_show_weather(action, m):
                 'fillColor': colormap(value),
                 'color': 'gray',
                 'weight': 1,
-                'fillOpacity': 0.7
+                'fillOpacity': 0.5 # Increased transparency
             }
         
         # Create layer name based on available info
         layer_name = f"{parameter.capitalize()} Forecast"
         if location:
             layer_name += f" - {location}"
-        layer_name += f" - {forecast_date}"
-        
+        layer_name += f" - {selected_date_str}" if selected_date_str else " - All Dates"
+
         # Add the weather layer to the map with interactive tooltip
         weather_layer = folium.GeoJson(
             serialize_geojson(weather_gdf),
             name=layer_name,
             style_function=style_function,
             tooltip=folium.GeoJsonTooltip(
-                fields=[parameter, 'forecast_date', 'display_value'],
-                aliases=[parameter.capitalize(), 'Date', f"{parameter.capitalize()} ({unit})"],
-                localize=True,
+                fields=[parameter, 'forecast_time_str', 'display_value'], # Use formatted string
+                aliases=[parameter.capitalize(), 'Time (UTC)', f"{parameter.capitalize()} ({unit})"], # Use updated alias
+                localize=False, # Don't need Folium's localization
+                # fmt dictionary removed
                 sticky=True,
                 labels=True
             )
@@ -397,11 +484,12 @@ def handle_show_weather(action, m):
         bounds_total = weather_gdf.total_bounds
         bounds.append([bounds_total[1], bounds_total[0]])  # SW corner
         bounds.append([bounds_total[3], bounds_total[2]])  # NE corner
-        
+
         # Display success message
-        st.success(f"Displaying {parameter} forecast for {forecast_date}")
-        
+        date_msg = f" for {selected_date_str}" if selected_date_str else " for all available dates"
+        st.success(f"Displaying {parameter} forecast{date_msg}")
+
     except Exception as e:
         st.error(f"Error displaying weather data: {str(e)}")
         
-    return bounds 
+    return bounds
