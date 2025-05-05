@@ -76,11 +76,40 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
         if gdf is None or gdf.empty:
             add_status_message("Failed to load power line data.", "error")
             return bounds
-            
-        # Apply strict filter by region
-        original_count = len(gdf)
-        gdf = gdf[gdf.intersects(region_polygon)].copy()
-        add_status_message(f"Filtered power lines from {original_count} to {len(gdf)} within {region_name}", "info")
+        
+        # Log region polygon information
+        add_status_message(f"Region polygon bounds: {region_polygon.bounds}", "info")
+        
+        # No special cases - just log the information
+        add_status_message(f"Processing region: {region_name}", "info")
+        
+        # Create a buffer around the region for more lenient filtering
+        buffered_region = region_polygon.buffer(0.05)  # ~5km buffer in degrees
+        add_status_message(f"Using buffered region for power line filtering", "info")
+        
+        # Display min/max coordinates of power line data as debugging info
+        pl_bounds = gdf.total_bounds
+        add_status_message(f"Power line data bounds: {pl_bounds}", "info")
+        
+        # Get the bounds of the region
+        minx, miny, maxx, maxy = region_polygon.bounds
+        
+        # Add a simple buffer to the bounds (0.1 degrees ~ 10km)
+        buffered_bounds = (minx - 0.1, miny - 0.1, maxx + 0.1, maxy + 0.1)
+        add_status_message(f"Using buffered bounds: {buffered_bounds}", "info")
+        
+        # Simple filtering by checking if points fall within bounds
+        # This is a simpler approach that will work with any polygon bounds
+        filtered_gdf = gdf[(gdf.geometry.x >= buffered_bounds[0]) & 
+                           (gdf.geometry.y >= buffered_bounds[1]) & 
+                           (gdf.geometry.x <= buffered_bounds[2]) & 
+                           (gdf.geometry.y <= buffered_bounds[3])].copy()
+        
+        add_status_message(f"Power lines in buffered bounds: {len(filtered_gdf)}", "info")
+        
+        # Use the filtered data
+        gdf = filtered_gdf
+        add_status_message(f"Final power line count for {region_name}: {len(gdf)}", "info")
         
         if gdf.empty:
             add_status_message(f"No power lines found within {region_name}.", "warning")
@@ -140,7 +169,7 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
             # Create a slightly larger circle with partial opacity
             folium.Circle(
                 location=coords,
-                radius=50,  # 50 meters - slightly larger but still small on map
+                radius=150,  # 150 meters as requested
                 color=action.get("color", '#ff3300'),  # Use action color or default to orange-red
                 weight=2,  # Line weight
                 fill=True,

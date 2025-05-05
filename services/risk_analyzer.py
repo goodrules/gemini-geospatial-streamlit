@@ -476,42 +476,38 @@ def handle_analyze_wind_risk(action, m):
                     add_status_message("Failed to load power line data.", "error")
                 else:
                     # Apply strict filtering by region
-                    original_count = len(power_lines_gdf)
-                    power_lines_gdf = power_lines_gdf[power_lines_gdf.geometry.intersects(region_polygon)].copy()
-                    add_status_message(f"Filtered power lines from {original_count} to {len(power_lines_gdf)} points within {region_name}", "info")
+                    # Display min/max coordinates of power line data as debugging info
+                    pl_bounds = power_lines_gdf.total_bounds
+                    add_status_message(f"Power line data bounds: {pl_bounds}", "info")
+                    
+                    # Get the bounds of the region
+                    minx, miny, maxx, maxy = region_polygon.bounds
+                    
+                    # Add a simple buffer to the bounds (0.1 degrees ~ 10km)
+                    buffered_bounds = (minx - 0.1, miny - 0.1, maxx + 0.1, maxy + 0.1)
+                    add_status_message(f"Using buffered bounds for risk analysis: {buffered_bounds}", "info")
+                    
+                    # Simple filtering by checking if points fall within bounds
+                    # This is a simpler approach that will work with any polygon bounds
+                    filtered_gdf = power_lines_gdf[(power_lines_gdf.geometry.x >= buffered_bounds[0]) & 
+                                                   (power_lines_gdf.geometry.y >= buffered_bounds[1]) & 
+                                                   (power_lines_gdf.geometry.x <= buffered_bounds[2]) & 
+                                                   (power_lines_gdf.geometry.y <= buffered_bounds[3])].copy()
+                    
+                    add_status_message(f"Power lines in buffered bounds: {len(filtered_gdf)}", "info")
+                    
+                    # Use the filtered data
+                    power_lines_gdf = filtered_gdf
+                    add_status_message(f"Final power line count for risk analysis in {region_name}: {len(power_lines_gdf)}", "info")
                     
                     if power_lines_gdf.empty:
                         add_status_message(f"No power lines found within {region_name}.", "warning")
                         power_lines_gdf = None  # Clear it so we don't use it for analysis
                     else:
-                        # Add the filtered power lines to the map as dots without markers
-                        add_status_message(f"Rendering {len(power_lines_gdf)} power line points as dots without markers for risk analysis", "info")
-                        
-                        # Create a feature group for the dots
-                        dot_group = folium.FeatureGroup(name=f"Power Line Points ({region_name})")
-                        
-                        # Add the points as dots directly
-                        for idx, row in power_lines_gdf.iterrows():
-                            # Extract coordinates from the Point geometry
-                            coords = (row.geometry.y, row.geometry.x)
-                            
-                            # Create tooltip for this point
-                            point_tooltip = f"Voltage: {row.get('VOLTAGE', 'N/A')}, Owner: {row.get('OWNER', 'N/A')}"
-                            
-                            # Create a slightly larger circle with partial opacity
-                            folium.Circle(
-                                location=coords,
-                                radius=50,  # 50 meters - slightly larger but still small on map
-                                color='#ff3300',  # Orange-red
-                                weight=2,  # Line weight
-                                fill=True,
-                                fill_color='#ff3300',  # Orange-red
-                                fill_opacity=0.7,  # Partial opacity as requested
-                                tooltip=point_tooltip,  # Use tooltip only, no popup to avoid markers
-                            ).add_to(dot_group)
-                        
-                        # Add the feature group to the map
-                        dot_group.add_to(m)
+                        # We'll add the power lines after analyzing risk, so save this for later
+                        # This ensures we can filter to only impacted areas and draw them on top
+                        saved_power_lines_gdf = power_lines_gdf.copy()
+                        add_status_message(f"Will render power line points after analyzing risk", "info")
 
         # 7. Analyze wind risk
         analysis_desc = "power line impact" if analyze_power_lines else "general wind risk"
@@ -804,6 +800,67 @@ def handle_analyze_wind_risk(action, m):
                         except Exception as e:
                             add_status_message(f"Error displaying moderate risk areas: {str(e)}", "error")
 
+                    # Now render power lines, but only those that intersect with risk areas
+                    # This ensures we only show power lines in impacted areas
+                    if 'saved_power_lines_gdf' in locals() and saved_power_lines_gdf is not None and not saved_power_lines_gdf.empty:
+                        try:
+                            # Get all the risk geometry - either for specific event or all events
+                            risk_geometry = None
+                            
+                            if selected_event_id == "all_timestamps":
+                                if high_risk_df_display is not None and not high_risk_df_display.empty:
+                                    risk_geometry = high_risk_df_display.geometry.unary_union
+                                if moderate_risk_df_display is not None and not moderate_risk_df_display.empty:
+                                    if risk_geometry is not None:
+                                        risk_geometry = risk_geometry.union(moderate_risk_df_display.geometry.unary_union)
+                                    else:
+                                        risk_geometry = moderate_risk_df_display.geometry.unary_union
+                            else:
+                                # Get geometry for specific event
+                                event_gdf = risk_events.get(selected_event_id)
+                                if event_gdf is not None and not event_gdf.empty:
+                                    risk_geometry = event_gdf.geometry.unary_union
+                            
+                            # If we have risk geometry, filter power lines to only those intersecting
+                            if risk_geometry is not None:
+                                filtered_power_lines = saved_power_lines_gdf[saved_power_lines_gdf.intersects(risk_geometry)].copy()
+                                
+                                if filtered_power_lines.empty:
+                                    add_status_message(f"No power lines found in impacted areas.", "info")
+                                else:
+                                    add_status_message(f"Rendering {len(filtered_power_lines)} power line points in impacted areas", "info")
+                                    
+                                    # Create a feature group for the dots - add to map last so it's on top
+                                    dot_group = folium.FeatureGroup(name=f"Power Lines in Risk Areas ({len(filtered_power_lines)} points)")
+                                    
+                                    # Add the points as dots directly
+                                    for idx, row in filtered_power_lines.iterrows():
+                                        # Extract coordinates from the Point geometry
+                                        coords = (row.geometry.y, row.geometry.x)
+                                        
+                                        # Create tooltip for this point
+                                        point_tooltip = f"Voltage: {row.get('VOLTAGE', 'N/A')} kV, Owner: {row.get('OWNER', 'N/A')}"
+                                        
+                                        # Create a slightly larger circle with partial opacity
+                                        folium.Circle(
+                                            location=coords,
+                                            radius=150,  # 150 meters as requested
+                                            color='#ff3300',  # Orange-red
+                                            weight=2,  # Line weight
+                                            fill=True,
+                                            fill_color='#ff3300',  # Orange-red
+                                            fill_opacity=0.7,  # Partial opacity as requested
+                                            tooltip=point_tooltip,  # Use tooltip only, no popup to avoid markers
+                                            zIndex=1000  # High z-index to ensure they're on top
+                                        ).add_to(dot_group)
+                                    
+                                    # Add the feature group to the map last (so it's on top)
+                                    dot_group.add_to(m)
+                            else:
+                                add_status_message("No risk areas found to filter power lines.", "warning")
+                        except Exception as e:
+                            add_status_message(f"Error filtering power lines by risk areas: {str(e)}", "error")
+                            
                     # Display details for the selected specific timestamp
                     if selected_event_id != "all_timestamps":
                         event_data = next((e for e in events if e["id"] == selected_event_id), None)

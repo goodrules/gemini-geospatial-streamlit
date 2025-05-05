@@ -42,17 +42,6 @@ def get_major_cities():
 
 def find_region_by_name(gdf, region_name, column_names=None):
     """Use fuzzy matching to find a region in a GeoDataFrame."""
-    # Special case for Crawford County for debugging
-    if region_name and isinstance(region_name, str) and "crawford" in region_name.lower():
-        add_status_message = getattr(st, "warning", print)
-        add_status_message(f"Crawford County search detected: '{region_name}'")
-        
-        # If we're looking in counties and this is a Crawford County search
-        if 'county_name' in gdf.columns:
-            crawford_matches = gdf[gdf['county_name'].str.lower() == "crawford"]
-            if not crawford_matches.empty:
-                add_status_message(f"Found Crawford County by direct lookup")
-                return crawford_matches
     if gdf is None or len(gdf) == 0:
         return None
         
@@ -66,19 +55,7 @@ def find_region_by_name(gdf, region_name, column_names=None):
     if normalized_name.endswith(" county"):
         normalized_name = normalized_name[:-7].strip()  # Remove " county"
     
-    # Special case for Crawford County
-    if normalized_name == "crawford" or normalized_name == "crawford county":
-        add_debug_message = getattr(st, "write", print)
-        add_debug_message(f"Looking for Crawford County specifically")
-        
-    # Add county suffix for common counties if not already present
-    # This specifically helps with the case where user just types "Crawford"
-    if normalized_name in ["crawford", "philadelphia", "allegheny", "montgomery", "bucks", "fulton"]:
-        if not region_name.lower().endswith(" county"):
-            # Only print this if st.write is available
-            add_debug_message = getattr(st, "write", print)
-            add_debug_message(f"Adding 'County' suffix to {normalized_name}")
-            normalized_name = f"{normalized_name} county"
+    # No special cases for specific counties - general handling only
     
     # Handle ZIP codes
     if 'zip_code' in gdf.columns:
