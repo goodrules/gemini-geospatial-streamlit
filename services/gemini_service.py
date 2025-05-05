@@ -236,7 +236,7 @@ def get_system_prompt(selected_init_date):
     }}
     
     IMPORTANT: When users ask about risk to power lines from high winds, potential power outages due to storms,
-    or if power lines are at risk of damage from weather, use the "analyze_wind_risk" action.
+    or if power lines are at risk of damage from weather, use the "analyze_wind_risk" action with analyze_power_lines=true.
     This action analyzes risk at specific forecast timestamps (06:00, 12:00, 18:00 UTC) within the specified number of days.
     Example:
     {{
@@ -244,9 +244,11 @@ def get_system_prompt(selected_init_date):
         "map_actions": [
             {{
                 "action_type": "analyze_wind_risk",
+                "region": "Pennsylvania",        # Required: The region to analyze (state, county, etc.)
                 "forecast_days": 5,             # Number of days to analyze from the selected init_date
                 "high_threshold": 16.0,         # Optional: Wind speed (m/s) threshold for high risk (default: 16)
-                "moderate_threshold": 13.0      # Optional: Wind speed (m/s) threshold for moderate risk (default: 13)
+                "moderate_threshold": 13.0,     # Optional: Wind speed (m/s) threshold for moderate risk (default: 13)
+                "analyze_power_lines": true     # REQUIRED: Set to true when query is about power line risk
             }}
         ]
     }}
@@ -363,16 +365,22 @@ def get_system_prompt(selected_init_date):
 
     Example for power line risk assessment in PA over 7 days:
     {{
-        "response": "I've analyzed the wind risk to power lines for the next 7 days based on the forecast. Areas and specific timestamps with potential high or moderate risk are highlighted.",
+        "response": "I've analyzed the wind risk to power lines in Pennsylvania for the next 7 days based on the forecast. Areas and specific timestamps with potential high or moderate risk are highlighted.",
         "map_actions": [
             {{
                 "action_type": "analyze_wind_risk",
+                "region": "Pennsylvania",       # REQUIRED: The region to analyze (state name, county name, etc.)
                 "forecast_days": 7,            # User asked for 7 days
                 "high_threshold": 16.0,
-                "moderate_threshold": 13.0
+                "moderate_threshold": 13.0,
+                "analyze_power_lines": true    # CRITICAL: Must be set to true for power line risk queries
             }}
         ]
     }}
+    
+IMPORTANT: When analyzing wind risk for power lines, you MUST specify a region parameter that defines the geographic 
+area to analyze. This could be a state name like "Pennsylvania" or a county name like "Crawford County". The region
+parameter is REQUIRED to prevent performance issues with large datasets.
     
     IMPORTANT: The weather data contains precise polygon geometries for each region. The map will automatically
     display all relevant polygons with the weather data when using the "show_weather" action.

@@ -45,21 +45,45 @@ def fit_map_to_bounds(m, bounds):
             lat, lon = bounds[0]
             delta = 0.01 # Small offset to create a tiny box
             final_bounds = [[lat - delta, lon - delta], [lat + delta, lon + delta]]
-    elif len(bounds) > 0 and all(isinstance(b, list) and len(b) == 2 for b in bounds):
-        # Calculate overall bounds from a list of bounding boxes [[miny,minx],[maxy,maxx]]
-        # Or a list of points [lat, lon] - folium fit_bounds handles list of points
-        # Let's assume the input is already processed correctly by handlers to be [[miny, minx], [maxy, maxx]] per feature
+    elif len(bounds) > 0:
+        # Robust calculation of overall bounds from a list that might contain
+        # bounding boxes [[miny, minx], [maxy, maxx]] or single points [lat, lon].
+        all_lats = []
+        all_lons = []
+        valid_bounds_found = False
         try:
-            # Extract all coordinates
-            all_lats = [coord[0] for box in bounds for coord in box]
-            all_lons = [coord[1] for box in bounds for coord in box]
+            for item in bounds:
+                if isinstance(item, list) and len(item) == 2:
+                    # Check if it's a box [[lat, lon], [lat, lon]]
+                    if isinstance(item[0], list) and len(item[0]) == 2 and \
+                       isinstance(item[1], list) and len(item[1]) == 2:
+                        # Extract coordinates from the box corners
+                        all_lats.extend([float(item[0][0]), float(item[1][0])])
+                        all_lons.extend([float(item[0][1]), float(item[1][1])])
+                        valid_bounds_found = True
+                    # Check if it's a single point [lat, lon]
+                    elif isinstance(item[0], (int, float)) and isinstance(item[1], (int, float)):
+                         all_lats.append(float(item[0]))
+                         all_lons.append(float(item[1]))
+                         valid_bounds_found = True
+                    else:
+                         st.warning(f"Skipping unexpected item format in bounds list: {item}")
+                else:
+                     st.warning(f"Skipping unexpected item format in bounds list: {item}")
 
+            if not valid_bounds_found or not all_lats or not all_lons:
+                 st.warning(f"Could not extract valid coordinates from bounds list: {bounds}")
+                 return # Cannot proceed
+
+            # Calculate final bounds using standard floats
             min_lat = min(all_lats)
             min_lon = min(all_lons)
             max_lat = max(all_lats)
             max_lon = max(all_lons)
 
+            # Ensure min/max logic didn't swap accidentally if only one point/box was processed
             final_bounds = [[min_lat, min_lon], [max_lat, max_lon]]
+
         except (TypeError, IndexError, ValueError) as e:
              st.warning(f"Could not determine overall bounds from list: {bounds}. Error: {e}")
              return # Cannot proceed if bounds calculation fails

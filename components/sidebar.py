@@ -61,11 +61,8 @@ def render_example_questions():
     st.header("Example Questions")
     
     geo_examples = [
-        "Show me the 10 largest cities in the United States",
         "Highlight Fulton County, Georgia on the map",
-        "Draw a line connecting New York and Los Angeles",
         "Compare the land area of Travis County, TX and King County, WA",
-        "Show all counties in Florida",
         "Highlight ZIP code 90210 on the map",
         "What's the land area of ZIP code 10001 in New York?",
     ]
@@ -73,8 +70,6 @@ def render_example_questions():
     weather_examples = [
         "Show the temperature forecast for California",
         "What is the wind speed forecast for Chicago?",
-        "Display weather data for Texas",
-        "Compare precipitation forecasts for Seattle and Miami",
         "Are any power lines at risk of high wind speed in the next 10 days in PA?" # Kept specific to PA power lines
     ]
     

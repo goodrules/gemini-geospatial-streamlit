@@ -100,7 +100,8 @@ A Python-based interactive geospatial analysis application that combines the pow
 - "What is the wind speed forecast for Chicago?"
 - "Display weather data for Texas"
 - "Compare precipitation forecasts for Seattle and Miami"
-- "Are any power lines at risk of high wind speed in the next 10 days in PA?" # Kept specific to PA power lines
+- "Are any power lines at risk of high wind speed in the next 10 days in PA?"
+- "Show me wind risk for power lines in Crawford County for the next 5 days"
 
 ## New Features
 
