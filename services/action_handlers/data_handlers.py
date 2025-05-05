@@ -62,7 +62,13 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
             if region_match is not None and not region_match.empty:
                 region_polygon = region_match.geometry.iloc[0]
                 region_found = True
-                add_status_message(f"Found region in counties data: {region_match['county_name'].iloc[0]}", "info")
+                # Include state information if available
+                if 'state_name' in region_match.columns:
+                    add_status_message(f"Found region in counties data: {region_match['county_name'].iloc[0]}, {region_match['state_name'].iloc[0]}", "info")
+                elif 'state' in region_match.columns:
+                    add_status_message(f"Found region in counties data: {region_match['county_name'].iloc[0]}, {region_match['state'].iloc[0]}", "info")
+                else:
+                    add_status_message(f"Found region in counties data: {region_match['county_name'].iloc[0]}", "info")
         
         # If we couldn't find the region, don't show power lines
         if not region_found or region_polygon is None:

@@ -368,7 +368,13 @@ def handle_analyze_wind_risk(action, m):
             
             if region_match is not None and not region_match.empty:
                 region_polygon = region_match.geometry.iloc[0]
-                add_status_message(f"Found matching county: {region_match['county_name'].iloc[0]}", "info")
+                # Include state information if available
+                if 'state_name' in region_match.columns:
+                    add_status_message(f"Found matching county: {region_match['county_name'].iloc[0]}, {region_match['state_name'].iloc[0]}", "info")
+                elif 'state' in region_match.columns:
+                    add_status_message(f"Found matching county: {region_match['county_name'].iloc[0]}, {region_match['state'].iloc[0]}", "info")
+                else:
+                    add_status_message(f"Found matching county: {region_match['county_name'].iloc[0]}", "info")
         
         if region_polygon is None:
             add_status_message(f"Could not find region: {region_name}. Please specify a valid state or county name.", "error")

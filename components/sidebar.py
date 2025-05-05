@@ -41,6 +41,53 @@ def render_sidebar():
                 st.rerun() # Rerun to fetch new data based on the selected date
 
             st.caption("Select the initialization date for the weather forecast data (data available back to 2022).")
+            
+        # Debug panel - displays the raw API request and response
+        with st.expander("Debug Panel", expanded=False):
+            st.subheader("Last API Exchange")
+            
+            # Display user prompt
+            if st.session_state.messages and len(st.session_state.messages) > 0:
+                last_user_msg = next((m for m in reversed(st.session_state.messages) if m["role"] == "user"), None)
+                if last_user_msg:
+                    st.markdown("#### Last User Prompt:")
+                    st.code(last_user_msg["content"], language="text")
+            
+            # Display system prompt if available
+            if hasattr(st.session_state, 'last_system_prompt'):
+                st.markdown("#### System Prompt (First 500 chars):")
+                prompt_preview = st.session_state.last_system_prompt[:500] + "..." if len(st.session_state.last_system_prompt) > 500 else st.session_state.last_system_prompt
+                
+                if st.button("Show Full System Prompt"):
+                    st.code(st.session_state.last_system_prompt, language="text")
+                else:
+                    st.code(prompt_preview, language="text")
+                
+            # Display raw API response if available
+            if hasattr(st.session_state, 'last_api_response'):
+                st.markdown("#### Raw API Response:")
+                try:
+                    # Pretty-print JSON
+                    import json
+                    parsed = json.loads(st.session_state.last_api_response)
+                    formatted = json.dumps(parsed, indent=2)
+                    
+                    # Display map_actions section
+                    if "map_actions" in parsed:
+                        st.markdown("#### Map Actions:")
+                        st.code(json.dumps(parsed["map_actions"], indent=2), language="json")
+                    
+                    # Option to see full response
+                    if st.button("Show Full API Response"):
+                        st.code(formatted, language="json")
+                    else:
+                        # Show a preview
+                        preview = formatted[:1000] + "..." if len(formatted) > 1000 else formatted
+                        st.code(preview, language="json")
+                        
+                except:
+                    # If can't parse as JSON, show as text
+                    st.code(st.session_state.last_api_response, language="text")
 
 
         if st.button("Clear Chat"):

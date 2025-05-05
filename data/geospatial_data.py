@@ -69,19 +69,25 @@ def get_us_counties():
             
         # Query to fetch US counties data
         query = """
-        SELECT 
-            geo_id, 
-            state_fips_code,
-            county_fips_code,
-            county_name,
-            lsad_name,
-            area_land_meters,
-            area_water_meters,
-            int_point_lat, 
-            int_point_lon,
-            ST_AsText(county_geom) as county_geom_wkt
-        FROM 
-            `bigquery-public-data.geo_us_boundaries.counties`
+        SELECT
+          counties_table.geo_id,
+          counties_table.state_fips_code,
+          counties_table.county_fips_code,
+          counties_table.county_name,
+          counties_table.lsad_name,
+          counties_table.area_land_meters,
+          counties_table.area_water_meters,
+          counties_table.int_point_lat,
+          counties_table.int_point_lon,
+          ST_ASTEXT(counties_table.county_geom) AS county_geom_wkt,
+          states_table.state,
+          states_table.state_name
+        FROM
+          `bigquery-public-data.geo_us_boundaries.counties` AS counties_table
+        JOIN
+          `bigquery-public-data.geo_us_boundaries.states` AS states_table
+        ON
+          counties_table.state_fips_code = states_table.state_fips_code;
         """
         
         # Run the query

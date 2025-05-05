@@ -256,7 +256,7 @@ def get_system_prompt(selected_init_date):
             {{
                 "action_type": "show_local_dataset",
                 "dataset_name": "power_lines",
-                "region": "Crawford County",  # County name for filtering
+                "region": "Crawford County, PA",  # Preferred format with state specified
                 "color": "#ff3300",  # Use a red color for the dots
                 "weight": 1,
                 "fill_color": "#ffff00",
@@ -265,8 +265,13 @@ def get_system_prompt(selected_init_date):
         ]
     }}
     
-    IMPORTANT: When you need to specify a region, the region must be recognizable as a state or county name. 
-    For counties, always use the full name like "Crawford County" instead of just "Crawford".
+    IMPORTANT: When you need to specify a region, the region must be recognizable as a state or county name.
+    For counties, always specify both the county name and state to avoid confusion with duplicate county names across states.
+    Use formats like "Crawford County, PA" or "Erie County, New York" to be specific.
+    
+    The "region" parameter now supports both:
+    - Simple format: "Crawford County" (may be ambiguous if the county name exists in multiple states)
+    - Specific format: "Crawford County, PA" (preferred, removes ambiguity by specifying the state)
     
     IMPORTANT: When users ask SPECIFICALLY about risk to POWER LINES from high winds, potential power outages due to storms,
     or if power lines are at risk of damage from weather, use the "analyze_wind_risk" action with analyze_power_lines=true.
@@ -401,7 +406,7 @@ def get_system_prompt(selected_init_date):
                 "action_type": "show_weather",
                 "parameter": "wind_speed",
                 "forecast_date": "{today_date}", # User didn't specify time, defaulting to max for the day
-                "location": "Crawford"
+                "location": "Crawford County, PA" # Preferred format with state specified
             }}
         ]
     }}
@@ -435,8 +440,9 @@ def get_system_prompt(selected_init_date):
     }}
     
 IMPORTANT: When analyzing wind risk for power lines, you MUST specify a region parameter that defines the geographic 
-area to analyze. This could be a state name like "Pennsylvania" or a county name like "Crawford County". The region
-parameter is REQUIRED to prevent performance issues with large datasets.
+area to analyze. This could be a state name like "Pennsylvania" or a county name with state like "Crawford County, PA". 
+For counties, always include the state to avoid ambiguity with duplicate county names. The region parameter is 
+REQUIRED to prevent performance issues with large datasets.
     
     IMPORTANT: The weather data contains precise polygon geometries for each region. The map will automatically
     display all relevant polygons with the weather data when using the "show_weather" action.
@@ -496,6 +502,9 @@ def get_gemini_response(prompt, history):
     selected_init_date = st.session_state.get("selected_init_date", date.today())
     system_prompt = get_system_prompt(selected_init_date) # Pass the date
     
+    # Save system prompt for debugging
+    st.session_state.last_system_prompt = system_prompt
+    
     try:
         new_content = [
             types.Content(
@@ -517,6 +526,9 @@ def get_gemini_response(prompt, history):
             config=config
         )
         
+        # Save raw response for debugging
+        st.session_state.last_api_response = response.text
+        
         # Add the actual user prompt and model response to history *after* the call
         history.append(new_content[0])
         history.append(types.Content(
@@ -528,7 +540,9 @@ def get_gemini_response(prompt, history):
     except Exception as e:
         # Ensure braces are doubled in f-string error message
         st.error(f"Error during Gemini API call: {{str(e)}}") 
-        return json.dumps({
+        error_response = json.dumps({
             "response": f"Error generating response: {{str(e)}}", 
             "map_actions": []
         })
+        st.session_state.last_api_response = error_response
+        return error_response
