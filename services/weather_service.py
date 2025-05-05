@@ -178,7 +178,15 @@ def handle_show_weather(action, m):
     try:
         # 1. Get all weather forecast data for the selected init_date
         selected_init_date = st.session_state.get("selected_init_date", date.today()) # Get selected init_date, default to today
-        weather_df_all = get_weather_forecast_data(selected_init_date)
+        
+        # Generate the simplified query for display in the spinner
+        from data.weather_data import get_weather_query
+        _, init_date_str = get_weather_query(selected_init_date)
+        simplified_query = f"SELECT weather.init_time, geography, forecast_time, temperature, precipitation, wind_speed FROM weathernext_graph_forecasts WHERE init_time = '{init_date_str}'"
+        
+        # Fetch the data with a spinner showing the query
+        with st.spinner(f"Executing: {simplified_query}"):
+            weather_df_all = get_weather_forecast_data(selected_init_date)
 
         if weather_df_all is None or weather_df_all.empty:
             add_status_message("No weather data available", "warning")

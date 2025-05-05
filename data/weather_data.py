@@ -14,6 +14,52 @@ from utils.streamlit_utils import add_status_message
 load_dotenv()
 PROJECT_ID = os.environ.get("PROJECT_ID")
 
+def get_weather_query(init_date):
+    """
+    Generate the SQL query for retrieving weather forecast data.
+    
+    Args:
+        init_date (datetime.date or str): The initialization date for the forecast.
+                                          If str, expected format 'YYYY-MM-DD'.
+    
+    Returns:
+        tuple: (query string, formatted init_date string)
+    """
+    # Format the date argument for the query
+    if isinstance(init_date, str):
+        init_date_str = init_date
+    else: # Assume datetime.date object
+        init_date_str = init_date.strftime('%Y-%m-%d')
+
+    # Define the query using the formatted string
+    query = f"""
+    WITH us_geom_lookup AS (
+    SELECT
+        us_outline_geom
+    FROM
+        `bigquery-public-data.geo_us_boundaries.national_outline`
+    )
+    SELECT
+        weather.init_time,
+        weather.geography,
+        weather.geography_polygon,
+        f.time AS forecast_time,
+        f.`2m_temperature` as temperature,
+        f.total_precipitation_6hr as precipitation,
+        f.`10m_u_component_of_wind`,
+        f.`10m_v_component_of_wind`,
+        SQRT(POW(f.`10m_u_component_of_wind`, 2) + POW(f.`10m_v_component_of_wind`, 2)) AS `wind_speed`   -- Calculate wind speed from U and V components
+    FROM
+        `mg-ce-demos.weathernext_graph_forecasts.59572747_4_0` AS weather,
+        UNNEST(weather.forecast) AS f
+    JOIN
+        us_geom_lookup AS us ON ST_INTERSECTS(weather.geography, us.us_outline_geom) -- Join only weather points inside state lines
+    WHERE
+        weather.init_time = TIMESTAMP("{init_date_str}")
+    """
+    
+    return query, init_date_str
+
 @st.cache_data(ttl=3600)
 def get_weather_forecast_data(init_date):
     """
@@ -21,7 +67,7 @@ def get_weather_forecast_data(init_date):
 
     Args:
         init_date (datetime.date or str): The initialization date for the forecast.
-                                           If str, expected format 'YYYY-MM-DD'.
+                                          If str, expected format 'YYYY-MM-DD'.
     
     This data covers Pennsylvania (PA) only - so it will only work for 
     PA regions and will show "No data" for other states.
@@ -30,42 +76,19 @@ def get_weather_forecast_data(init_date):
     forecast_time represents the specific timestamp for which the forecast applies (UTC).
     """
     try:
-        # Format the date argument for the query FIRST
-        if isinstance(init_date, str):
-            init_date_str = init_date
-        else: # Assume datetime.date object
-            init_date_str = init_date.strftime('%Y-%m-%d')
-
-        # Now define the query using the formatted string
-        query = f"""
-        WITH us_geom_lookup AS (
-        SELECT
-            us_outline_geom
-        FROM
-            `bigquery-public-data.geo_us_boundaries.national_outline`
-        )
-        SELECT
-            weather.init_time,
-            weather.geography,
-            weather.geography_polygon,
-            f.time AS forecast_time,
-            f.`2m_temperature` as temperature,
-            f.total_precipitation_6hr as precipitation,
-            f.`10m_u_component_of_wind`,
-            f.`10m_v_component_of_wind`,
-            SQRT(POW(f.`10m_u_component_of_wind`, 2) + POW(f.`10m_v_component_of_wind`, 2)) AS `wind_speed`   -- Calculate wind speed from U and V components
-        FROM
-            `mg-ce-demos.weathernext_graph_forecasts.59572747_4_0` AS weather,
-            UNNEST(weather.forecast) AS f
-        JOIN
-            us_geom_lookup AS us ON ST_INTERSECTS(weather.geography, us.us_outline_geom) -- Join only weather points inside state lines
-        WHERE
-            weather.init_time = TIMESTAMP("{init_date_str}")
-        """
-
-        add_status_message(f"Querying weather data for init_date: {init_date_str}", "info") # Info for debugging
-                
-        # Execute the query (no .format needed anymore)
+        # Generate the query first (separated for better spinner usage)
+        query, init_date_str = get_weather_query(init_date)
+        
+        # Store the SQL query in session state for reference
+        st.session_state.last_weather_query = query
+        
+        # Create a simplified query for display in status messages
+        simplified_query = f"SELECT weather.init_time, geography, forecast_time, temperature, precipitation, wind_speed FROM weathernext_graph_forecasts WHERE init_time = '{init_date_str}'"
+        
+        # Log the simplified query in the status message
+        add_status_message(simplified_query, "info")
+        
+        # Execute the query (without spinner, as the caller will add the spinner)
         forecast_df = execute_query(query)
             
         return forecast_df
