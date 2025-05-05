@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import traceback # Import traceback
 import geopandas as gpd
-from shapely.geometry import shape
+from shapely.geometry import shape, Point
 from shapely import wkt # Ensure wkt is imported
 import folium
 from branca.colormap import LinearColormap
@@ -62,6 +62,13 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
         # Classify risk levels using .loc on the initial areas
         wind_risk_areas_initial.loc[:, 'risk_level'] = 'moderate'
         wind_risk_areas_initial.loc[wind_risk_areas_initial['wind_speed'] >= high_threshold, 'risk_level'] = 'high'
+        
+        # Verify risk level column was added
+        if 'risk_level' not in wind_risk_areas_initial.columns:
+            add_status_message("WARNING: Failed to add risk_level column to weather data", "warning")
+            # Add it again to be sure
+            wind_risk_areas_initial['risk_level'] = 'moderate'
+            wind_risk_areas_initial.loc[wind_risk_areas_initial['wind_speed'] >= high_threshold, 'risk_level'] = 'high'
 
         # Initialize risk_areas with the initial filtered set
         risk_areas = wind_risk_areas_initial.copy()
@@ -71,22 +78,28 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
 
         # 2. Conditional Power Line Intersection Logic
         if analyze_power_line_impact:
-            if not power_lines_loaded:
-                add_status_message("Power line impact analysis requested. Loading power line data...", "info")
-                power_lines_gdf = get_pa_power_lines()
-                if power_lines_gdf is not None and not power_lines_gdf.empty:
-                     power_lines_loaded = True
-
-            if not power_lines_loaded or power_lines_gdf.empty:
-                # Power line analysis requested, but data unavailable - likely file not found
-                add_status_message("Power line impact analysis requested, but power line data could not be loaded. Proceeding with general wind risk analysis.", "warning")
+            # SIMPLIFIED: Power line analysis requires the pre-filtered power_lines_gdf
+            # from the handler function to already be passed in
+            
+            if power_lines_gdf is None or power_lines_gdf.empty:
+                # Power line analysis requested, but no filtered data available
+                add_status_message("Power line impact analysis requested, but no filtered power line data is available. Proceeding with general wind risk analysis.", "warning")
                 # Proceed with general wind risk analysis (risk_areas remains wind_risk_areas_initial)
+                power_lines_loaded = False
             else:
-                # Power lines available, proceed with buffering and intersection
+                # Already filtered power lines available, proceed with buffering and intersection
                 try:
-                    # 3. Create a buffer around power lines (approximately 1km buffer)
+                    add_status_message(f"Creating buffer around power points for risk analysis", "info")
+                    power_lines_loaded = True
+                    
+                    # Convert to appropriate projection for buffering
                     power_lines_proj = power_lines_gdf.to_crs("EPSG:3857")  # Web Mercator
-                    buffered_lines = power_lines_proj.buffer(1000)  # 1km buffer
+                    
+                    # Use 500m buffer for points
+                    buffer_distance = 500
+                    
+                    # Create buffer and prepare for intersection
+                    buffered_lines = power_lines_proj.buffer(buffer_distance)
                     buffered_lines_gdf = gpd.GeoDataFrame(geometry=buffered_lines, crs="EPSG:3857")
                     buffered_lines_gdf = buffered_lines_gdf.to_crs("EPSG:4326")  # Back to WGS84
                 except Exception as buffer_err:
@@ -115,6 +128,13 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
                             # Intersection successful, update risk_areas
                              risk_areas = joined_areas.drop_duplicates(subset=['geography_polygon', 'forecast_time']).copy()
                              intersection_performed = True # Mark intersection as successful
+                             
+                             # Check if risk_level column survived the join
+                             if 'risk_level' not in risk_areas.columns:
+                                 add_status_message("WARNING: risk_level column lost during spatial join. Re-adding it.", "warning")
+                                 # Add it again based on thresholds
+                                 risk_areas['risk_level'] = 'moderate'
+                                 risk_areas.loc[risk_areas['wind_speed'] >= high_threshold, 'risk_level'] = 'high'
 
                     except Exception as join_err:
                          add_status_message(f"Error during spatial join: {join_err}", "error")
@@ -161,8 +181,18 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
             timestamp_areas = risk_areas[risk_areas['forecast_time'] == timestamp].copy()
             if timestamp_areas.empty: continue
 
+            # Check if risk_level exists in the dataset
+            if 'risk_level' not in timestamp_areas.columns:
+                add_status_message(f"WARNING: risk_level column missing from timestamp areas for {timestamp}", "warning")
+                # Add it once more based on thresholds
+                timestamp_areas['risk_level'] = 'moderate'
+                timestamp_areas.loc[timestamp_areas['wind_speed'] >= high_threshold, 'risk_level'] = 'high'
+            
             high_count = len(timestamp_areas[timestamp_areas['risk_level'] == 'high'])
             moderate_count = len(timestamp_areas[timestamp_areas['risk_level'] == 'moderate'])
+            
+            add_status_message(f"For timestamp {timestamp}: {high_count} high risk, {moderate_count} moderate risk areas", "info")
+            
             if high_count + moderate_count == 0: continue
 
             timestamp_str_id = timestamp.strftime('%Y%m%d_%H%M')
@@ -186,7 +216,13 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
                 "risk_level": "High" if high_count > 0 else "Moderate"
             }
             events.append(event_summary)
-            risk_events[event_id] = timestamp_areas # Store GDF for this specific timestamp
+            # Ensure timestamp_areas has geometry and risk_level column before storing
+            if 'geometry' in timestamp_areas.columns and 'risk_level' in timestamp_areas.columns:
+                risk_events[event_id] = timestamp_areas # Store GDF for this specific timestamp
+                add_status_message(f"Added event {event_id} with {len(timestamp_areas)} areas ({high_count} high, {moderate_count} moderate)", "info")
+            else:
+                add_status_message(f"WARNING: Event {event_id} missing required columns. Not adding to risk_events.", "warning")
+                add_status_message(f"Columns: {', '.join(timestamp_areas.columns)}", "info")
 
 
         # 7. Prepare overall summary (Corrected)
@@ -426,34 +462,56 @@ def handle_analyze_wind_risk(action, m):
         # 6. Get power lines data only if needed (analyze_wind_risk handles internal loading if None)
         power_lines_gdf = None # Initialize as None
         if analyze_power_lines:
-            # Try to load power lines; analyze_wind_risk will handle if it's still None/empty
-            power_lines_gdf = get_pa_power_lines()
+            # SIMPLIFIED APPROACH: Only show power lines if we have a valid region,
+            # and only show the ones that actually intersect with the region
             
-            # If we have power lines, filter them by the region too
-            if power_lines_gdf is not None and not power_lines_gdf.empty:
-                original_count = len(power_lines_gdf)
-                power_lines_gdf = power_lines_gdf[power_lines_gdf.intersects(region_polygon)].copy()
-                add_status_message(f"Filtered power lines from {original_count} to {len(power_lines_gdf)} within {region_name}", "info")
+            if region_polygon is None:
+                add_status_message("No valid region polygon for power line analysis", "warning")
+            else:
+                # Load power line data
+                add_status_message(f"Loading power line data for {region_name}...", "info")
+                power_lines_gdf = get_pa_power_lines(use_geojson=True)
                 
-                if power_lines_gdf.empty:
-                    add_status_message(f"No power lines found within {region_name}.", "warning")
+                if power_lines_gdf is None or power_lines_gdf.empty:
+                    add_status_message("Failed to load power line data.", "error")
                 else:
-                    # Always display power lines on the map when they're involved in analysis
-                    folium.GeoJson(
-                        power_lines_gdf,
-                        name="Power Transmission Lines",
-                        style_function=lambda x: {
-                            'color': '#0066cc',
-                            'weight': 3,
-                            'opacity': 0.8
-                        },
-                        tooltip=folium.GeoJsonTooltip(
-                            fields=['VOLTAGE', 'OWNER'],
-                            aliases=['Voltage', 'Owner'],
-                            localize=False,
-                            sticky=True
-                        )
-                    ).add_to(m)
+                    # Apply strict filtering by region
+                    original_count = len(power_lines_gdf)
+                    power_lines_gdf = power_lines_gdf[power_lines_gdf.geometry.intersects(region_polygon)].copy()
+                    add_status_message(f"Filtered power lines from {original_count} to {len(power_lines_gdf)} points within {region_name}", "info")
+                    
+                    if power_lines_gdf.empty:
+                        add_status_message(f"No power lines found within {region_name}.", "warning")
+                        power_lines_gdf = None  # Clear it so we don't use it for analysis
+                    else:
+                        # Add the filtered power lines to the map as dots without markers
+                        add_status_message(f"Rendering {len(power_lines_gdf)} power line points as dots without markers for risk analysis", "info")
+                        
+                        # Create a feature group for the dots
+                        dot_group = folium.FeatureGroup(name=f"Power Line Points ({region_name})")
+                        
+                        # Add the points as dots directly
+                        for idx, row in power_lines_gdf.iterrows():
+                            # Extract coordinates from the Point geometry
+                            coords = (row.geometry.y, row.geometry.x)
+                            
+                            # Create tooltip for this point
+                            point_tooltip = f"Voltage: {row.get('VOLTAGE', 'N/A')}, Owner: {row.get('OWNER', 'N/A')}"
+                            
+                            # Create a slightly larger circle with partial opacity
+                            folium.Circle(
+                                location=coords,
+                                radius=50,  # 50 meters - slightly larger but still small on map
+                                color='#ff3300',  # Orange-red
+                                weight=2,  # Line weight
+                                fill=True,
+                                fill_color='#ff3300',  # Orange-red
+                                fill_opacity=0.7,  # Partial opacity as requested
+                                tooltip=point_tooltip,  # Use tooltip only, no popup to avoid markers
+                            ).add_to(dot_group)
+                        
+                        # Add the feature group to the map
+                        dot_group.add_to(m)
 
         # 7. Analyze wind risk
         analysis_desc = "power line impact" if analyze_power_lines else "general wind risk"
@@ -515,13 +573,8 @@ def handle_analyze_wind_risk(action, m):
                         key="wind_event_selector"
                     )
 
-                    # 7. Visualize risk areas based on selection
-                    if power_lines_gdf is not None:
-                         folium.GeoJson(
-                             power_lines_gdf, # Direct GDF usage
-                             name="Power Lines",
-                             style_function=lambda x: {'color': '#0066cc', 'weight': 1.5, 'opacity': 0.6}
-                         ).add_to(m)
+                    # The power line points are already on the map from earlier,
+                    # so we don't need to add them again
 
                     # Dynamically adjust color scale captions and map layer names
                     is_pl_impact = risk_summary.get("analysis_type") == "power_line_impact"
@@ -541,12 +594,19 @@ def handle_analyze_wind_risk(action, m):
 
 
                     if selected_event_id == "all_timestamps":
+                        add_status_message(f"Showing all risk events ({len(risk_events.keys()) if risk_events else 0} timestamps)", "info")
                         if risk_events:
                              # Ensure all GDFs have the same CRS before concat
                              all_areas_list = []
                              target_crs = None
-                             for gdf in risk_events.values():
+                             for event_id, gdf in risk_events.items():
+                                 add_status_message(f"Processing event {event_id}: {len(gdf) if gdf is not None else 0} areas", "info")
                                  if gdf is not None and not gdf.empty:
+                                     # Check if risk_level exists
+                                     if 'risk_level' not in gdf.columns:
+                                         add_status_message(f"WARNING: Event {event_id} missing risk_level column", "warning")
+                                         continue
+                                         
                                      if target_crs is None: target_crs = gdf.crs
                                      if gdf.crs != target_crs:
                                          gdf = gdf.to_crs(target_crs)
@@ -571,10 +631,29 @@ def handle_analyze_wind_risk(action, m):
                                      moderate_risk_df_display = all_risk_gdf[all_risk_gdf['risk_level'] == 'moderate'].copy()
                     else:
                         selected_gdf = risk_events.get(selected_event_id) # This is already a GeoDataFrame
+                        add_status_message(f"Showing risk event: {selected_event_id}", "info")
+                        
                         if selected_gdf is not None and not selected_gdf.empty:
-                             # Filtering a GeoDataFrame results in a GeoDataFrame
-                             high_risk_df_display = selected_gdf[selected_gdf['risk_level'] == 'high'].copy()
-                             moderate_risk_df_display = selected_gdf[selected_gdf['risk_level'] == 'moderate'].copy()
+                             # Debug output
+                             add_status_message(f"Event has {len(selected_gdf)} total areas", "info")
+                             
+                             # Check if the risk_level column exists (it should)
+                             if 'risk_level' not in selected_gdf.columns:
+                                 add_status_message("WARNING: risk_level column missing from event data", "warning")
+                                 add_status_message(f"Available columns: {', '.join(selected_gdf.columns)}", "info")
+                                 high_risk_df_display = pd.DataFrame()
+                                 moderate_risk_df_display = pd.DataFrame()
+                             else:
+                                 # Filtering a GeoDataFrame results in a GeoDataFrame
+                                 high_risk_df_display = selected_gdf[selected_gdf['risk_level'] == 'high'].copy()
+                                 moderate_risk_df_display = selected_gdf[selected_gdf['risk_level'] == 'moderate'].copy()
+                                 
+                                 # Log counts
+                                 add_status_message(f"Found {len(high_risk_df_display)} high risk and {len(moderate_risk_df_display)} moderate risk areas", "info")
+                        else:
+                             add_status_message(f"No data found for event: {selected_event_id}", "warning")
+                             high_risk_df_display = pd.DataFrame()
+                             moderate_risk_df_display = pd.DataFrame()
 
                     # CRS is inherited from the source GDFs (all_risk_gdf or selected_gdf)
 
@@ -610,46 +689,120 @@ def handle_analyze_wind_risk(action, m):
                          return {'fillColor': risk_colormaps[color_map_key](score), 'color': color, 'weight': 0.5, 'fillOpacity': 0.6}
 
                     if not high_risk_df_display.empty:
-                        # Calculate bounds BEFORE converting to JSON, ensuring standard floats
-                        b = high_risk_df_display.total_bounds # [minx, miny, maxx, maxy]
-                        bounds.append([[float(b[1]), float(b[0])], [float(b[3]), float(b[2])]]) # [[miny, minx], [maxy, maxx]]
-                        # Convert to GeoJSON dictionary
-                        high_risk_geojson = json.loads(high_risk_df_display.to_json())
-                        # print("--- High Risk GeoJSON for Folium ---") # Removing debug print
-                        # print(json.dumps(high_risk_geojson, indent=2, default=str)) # Removing debug print
-                        folium.GeoJson(
-                            high_risk_geojson, # Use GeoJSON dictionary
-                            name=f"High Wind Risk Areas{layer_name_suffix}", # Dynamic name
-                            style_function=lambda feature: risk_style_func(feature, 'high'),
-                            tooltip=folium.GeoJsonTooltip(
-                                fields=['forecast_time_str', 'wind_speed', 'risk_score'],
-                                aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score (%)'],
-                                localize=False, sticky=True
-                            )
-                        ).add_to(m)
-                        risk_colormaps['high'].add_to(m) # Add legend
-                        # Bounds calculation moved up
+                        add_status_message(f"Drawing {len(high_risk_df_display)} high risk areas on map", "info")
+                        try:
+                            # Calculate bounds BEFORE converting to JSON, ensuring standard floats
+                            b = high_risk_df_display.total_bounds # [minx, miny, maxx, maxy]
+                            bounds.append([[float(b[1]), float(b[0])], [float(b[3]), float(b[2])]]) # [[miny, minx], [maxy, maxx]]
+                            
+                            # Check for required columns
+                            if 'geometry' not in high_risk_df_display:
+                                add_status_message("High risk dataframe missing geometry column!", "error")
+                            
+                            # Convert to GeoJSON dictionary
+                            high_risk_geojson = json.loads(high_risk_df_display.to_json())
+                            
+                            # Check for features in GeoJSON
+                            if not high_risk_geojson.get('features', []):
+                                add_status_message("No features in high risk GeoJSON!", "warning")
+                                
+                            # First method: Try simple GeoJSON
+                            folium.GeoJson(
+                                high_risk_geojson, # Use GeoJSON dictionary
+                                name=f"High Wind Risk Areas{layer_name_suffix}", # Dynamic name
+                                style_function=lambda feature: {
+                                    'fillColor': '#ff0000', 
+                                    'color': '#800000',
+                                    'weight': 2,
+                                    'opacity': 1,
+                                    'fillOpacity': 0.7
+                                },
+                                tooltip=folium.GeoJsonTooltip(
+                                    fields=['forecast_time_str', 'wind_speed', 'risk_score'],
+                                    aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score (%)'],
+                                    localize=False, sticky=True
+                                )
+                            ).add_to(m)
+                            
+                            # Add marker at centroid as backup visualization
+                            for idx, row in high_risk_df_display.iterrows():
+                                try:
+                                    # Get centroid of polygon
+                                    centroid = row.geometry.centroid
+                                    folium.CircleMarker(
+                                        location=[centroid.y, centroid.x],
+                                        radius=8,
+                                        color='red',
+                                        fill=True,
+                                        fill_color='red',
+                                        fill_opacity=0.6,
+                                        popup=f"High Risk: {row.get('wind_speed', 'N/A')} m/s"
+                                    ).add_to(m)
+                                except Exception as e:
+                                    add_status_message(f"Error adding centroid marker: {e}", "error")
+                            
+                            risk_colormaps['high'].add_to(m) # Add legend
+                            
+                        except Exception as e:
+                            add_status_message(f"Error displaying high risk areas: {str(e)}", "error")
 
                     if not moderate_risk_df_display.empty:
-                        # Calculate bounds BEFORE converting to JSON, ensuring standard floats
-                        b = moderate_risk_df_display.total_bounds # [minx, miny, maxx, maxy]
-                        bounds.append([[float(b[1]), float(b[0])], [float(b[3]), float(b[2])]]) # [[miny, minx], [maxy, maxx]]
-                        # Convert to GeoJSON dictionary
-                        moderate_risk_geojson = json.loads(moderate_risk_df_display.to_json())
-                        # print("--- Moderate Risk GeoJSON for Folium ---") # Removing debug print
-                        # print(json.dumps(moderate_risk_geojson, indent=2, default=str)) # Removing debug print
-                        folium.GeoJson(
-                            moderate_risk_geojson, # Use GeoJSON dictionary
-                            name=f"Moderate Wind Risk Areas{layer_name_suffix}", # Dynamic name
-                            style_function=lambda feature: risk_style_func(feature, 'moderate'),
-                            tooltip=folium.GeoJsonTooltip(
-                                fields=['forecast_time_str', 'wind_speed', 'risk_score'],
-                                aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score (%)'],
-                                localize=False, sticky=True
-                            )
-                        ).add_to(m)
-                        risk_colormaps['moderate'].add_to(m) # Add legend
-                        # Bounds calculation moved up
+                        add_status_message(f"Drawing {len(moderate_risk_df_display)} moderate risk areas on map", "info")
+                        try:
+                            # Calculate bounds BEFORE converting to JSON, ensuring standard floats
+                            b = moderate_risk_df_display.total_bounds # [minx, miny, maxx, maxy]
+                            bounds.append([[float(b[1]), float(b[0])], [float(b[3]), float(b[2])]]) # [[miny, minx], [maxy, maxx]]
+                            
+                            # Check for required columns
+                            if 'geometry' not in moderate_risk_df_display:
+                                add_status_message("Moderate risk dataframe missing geometry column!", "error")
+                            
+                            # Convert to GeoJSON dictionary
+                            moderate_risk_geojson = json.loads(moderate_risk_df_display.to_json())
+                            
+                            # Check for features in GeoJSON
+                            if not moderate_risk_geojson.get('features', []):
+                                add_status_message("No features in moderate risk GeoJSON!", "warning")
+                                
+                            # First method: Try simple GeoJSON
+                            folium.GeoJson(
+                                moderate_risk_geojson, # Use GeoJSON dictionary
+                                name=f"Moderate Wind Risk Areas{layer_name_suffix}", # Dynamic name
+                                style_function=lambda feature: {
+                                    'fillColor': '#ffaa00', 
+                                    'color': '#996600',
+                                    'weight': 2,
+                                    'opacity': 1,
+                                    'fillOpacity': 0.6
+                                },
+                                tooltip=folium.GeoJsonTooltip(
+                                    fields=['forecast_time_str', 'wind_speed', 'risk_score'],
+                                    aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score (%)'],
+                                    localize=False, sticky=True
+                                )
+                            ).add_to(m)
+                            
+                            # Add marker at centroid as backup visualization
+                            for idx, row in moderate_risk_df_display.iterrows():
+                                try:
+                                    # Get centroid of polygon
+                                    centroid = row.geometry.centroid
+                                    folium.CircleMarker(
+                                        location=[centroid.y, centroid.x],
+                                        radius=8,
+                                        color='orange',
+                                        fill=True,
+                                        fill_color='orange',
+                                        fill_opacity=0.6,
+                                        popup=f"Moderate Risk: {row.get('wind_speed', 'N/A')} m/s"
+                                    ).add_to(m)
+                                except Exception as e:
+                                    add_status_message(f"Error adding centroid marker: {e}", "error")
+                            
+                            risk_colormaps['moderate'].add_to(m) # Add legend
+                            
+                        except Exception as e:
+                            add_status_message(f"Error displaying moderate risk areas: {str(e)}", "error")
 
                     # Display details for the selected specific timestamp
                     if selected_event_id != "all_timestamps":

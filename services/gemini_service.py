@@ -220,20 +220,53 @@ def get_system_prompt(selected_init_date):
     }}
 
     IMPORTANT: When users ask about power lines, electricity infrastructure, transmission lines, or utility lines, 
-    use the "show_local_dataset" action with "dataset_name": "power_lines". For example:
+    use the "show_local_dataset" action with "dataset_name": "power_lines" AND ALWAYS include a "region" parameter.
+    
+    You MUST specify a region parameter - without it, no power lines will be displayed.
+    
+    For example:
     {{
-        "response": "Here are the power lines in Pennsylvania. The blue lines represent the electrical transmission network.",
+        "response": "Here are the power lines in Pennsylvania. The red dots represent the electrical transmission network points.",
         "map_actions": [
             {{
                 "action_type": "show_local_dataset",
                 "dataset_name": "power_lines",
-                "color": "#0066cc",
-                "weight": 4,
+                "region": "Pennsylvania",  # ALWAYS include a region parameter
+                "color": "#ff3300",  # Red color for better visibility of small dots
+                "weight": 3,
                 "fill_color": "#ffff00",
-                "fill_opacity": 0.5
+                "fill_opacity": 0.8
             }}
         ]
     }}
+    
+    Example with county-level filtering:
+    {{
+        "response": "Here are the power lines in Crawford County, Pennsylvania. The red dots represent the electrical transmission network points.",
+        "map_actions": [
+            {{
+                "action_type": "highlight_region",
+                "region_name": "Crawford",
+                "region_type": "county",
+                "state_name": "Pennsylvania",
+                "color": "blue",
+                "fill_color": "lightblue",
+                "fill_opacity": 0.2
+            }},
+            {{
+                "action_type": "show_local_dataset",
+                "dataset_name": "power_lines",
+                "region": "Crawford County",  # County name for filtering
+                "color": "#ff3300",  # Use a red color for the dots
+                "weight": 1,
+                "fill_color": "#ffff00",
+                "fill_opacity": 0.8
+            }}
+        ]
+    }}
+    
+    IMPORTANT: When you need to specify a region, the region must be recognizable as a state or county name. 
+    For counties, always use the full name like "Crawford County" instead of just "Crawford".
     
     IMPORTANT: When users ask SPECIFICALLY about risk to POWER LINES from high winds, potential power outages due to storms,
     or if power lines are at risk of damage from weather, use the "analyze_wind_risk" action with analyze_power_lines=true.
@@ -286,6 +319,8 @@ def get_system_prompt(selected_init_date):
     - If the user specifies ONLY a date (e.g., "tomorrow", "December 18th") without mentioning a time, use the `forecast_date` parameter (format YYYY-MM-DD). The service will then show the MAX value for that day.
     - If neither date nor time is specified, omit both `forecast_timestamp` and `forecast_date`. The service will show the MAX value for the LATEST available date.
 
+    IMPORTANT: The region parameter can now be used to filter power line data to only show lines in a specific region.
+    
     IMPORTANT: The user has selected '{today_date}' as the current initialization date ('init_date') for the forecast data.
     Interpret relative date/time requests based on THIS selected date:
     - "today" (general): Use `forecast_date`: "{today_date}"
