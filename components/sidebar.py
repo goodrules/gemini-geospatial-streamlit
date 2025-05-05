@@ -108,16 +108,15 @@ def render_example_questions():
     st.header("Example Questions")
     
     geo_examples = [
-        "Highlight Fulton County, Georgia on the map",
         "Compare the land area of Travis County, TX and King County, WA",
-        "Highlight ZIP code 90210 on the map",
+        "Show me power lines near Philadelphia, PA",
         "What's the land area of ZIP code 10001 in New York?",
     ]
     
     weather_examples = [
         "Show the temperature forecast for California",
         "What is the wind speed forecast for Chicago?",
-        "Are any power lines at risk of high wind speed in the next 10 days in PA?" # Kept specific to PA power lines
+        "Are any power lines at risk of high wind speed in the next 10 days in Erie County, PA?"
     ]
     
     st.subheader("Geospatial & Weather")

@@ -148,7 +148,7 @@ class StatusMessageInterceptor:
         return False
 
 def display_status_messages():
-    """Display all collected status messages in a compact format"""
+    """Display all collected status messages in a compact format with each message on a separate line"""
     if "status_messages" in st.session_state and st.session_state.status_messages:
         # Group messages by type
         info_messages = [msg["text"] for msg in st.session_state.status_messages if msg["type"] == "info"]
@@ -163,16 +163,26 @@ def display_status_messages():
             # Column 1: Info and Success
             with cols[0]:
                 if info_messages:
-                    _original_info("\n".join(f"• {msg}" for msg in info_messages))
+                    # Display each info message individually
+                    for msg in info_messages:
+                        _original_info(f"{msg}")
+                
                 if success_messages:
-                    _original_success("\n".join(f"• {msg}" for msg in success_messages))
+                    # Display each success message individually
+                    for msg in success_messages:
+                        _original_success(f"{msg}")
             
             # Column 2: Warning and Error
             with cols[1]:
                 if warning_messages:
-                    _original_warning("\n".join(f"• {msg}" for msg in warning_messages))
+                    # Display each warning message individually
+                    for msg in warning_messages:
+                        _original_warning(f"**{msg}**")
+                
                 if error_messages:
-                    _original_error("\n".join(f"• {msg}" for msg in error_messages))
+                    # Display each error message individually
+                    for msg in error_messages:
+                        _original_error(f"*{msg}*")
         
         # Clear after display
         clear_status_messages()

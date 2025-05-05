@@ -175,7 +175,7 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
             # Create a slightly larger circle with partial opacity
             folium.Circle(
                 location=coords,
-                radius=150,  # 150 meters as requested
+                radius=300,  # 300 meters as requested
                 color=action.get("color", '#ff3300'),  # Use action color or default to orange-red
                 weight=2,  # Line weight
                 fill=True,

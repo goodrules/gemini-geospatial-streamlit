@@ -850,7 +850,7 @@ def handle_analyze_wind_risk(action, m):
                                         # Create a slightly larger circle with partial opacity
                                         folium.Circle(
                                             location=coords,
-                                            radius=150,  # 150 meters as requested
+                                            radius=300,  # 300 meters as requested
                                             color='#ff3300',  # Orange-red
                                             weight=2,  # Line weight
                                             fill=True,
