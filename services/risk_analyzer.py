@@ -13,6 +13,7 @@ from services.map_core import serialize_geojson
 from services.weather_service import get_weather_color_scale
 from datetime import date, timedelta # Ensure date and timedelta are imported
 from utils.geo_utils import find_region_by_name
+from utils.streamlit_utils import add_status_message
 
 def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderate_threshold=13.0, analyze_power_line_impact=False):
     """
@@ -39,7 +40,7 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
 
         # Check if empty before starting
         if weather_gdf.empty:
-            st.warning("[Risk Analysis] Input weather data is empty.")
+            add_status_message("[Risk Analysis] Input weather data is empty.", "warning")
             return {}, {"risk_found": False, "message": "Input weather data is empty."}
 
         # Ensure required columns exist
@@ -71,14 +72,14 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
         # 2. Conditional Power Line Intersection Logic
         if analyze_power_line_impact:
             if not power_lines_loaded:
-                st.info("Power line impact analysis requested. Loading power line data...")
+                add_status_message("Power line impact analysis requested. Loading power line data...", "info")
                 power_lines_gdf = get_pa_power_lines()
                 if power_lines_gdf is not None and not power_lines_gdf.empty:
                      power_lines_loaded = True
 
             if not power_lines_loaded or power_lines_gdf.empty:
-                # Power line analysis requested, but data unavailable
-                st.warning("Power line impact analysis requested, but power line data is not available for this region.")
+                # Power line analysis requested, but data unavailable - likely file not found
+                add_status_message("Power line impact analysis requested, but power line data could not be loaded. Proceeding with general wind risk analysis.", "warning")
                 # Proceed with general wind risk analysis (risk_areas remains wind_risk_areas_initial)
             else:
                 # Power lines available, proceed with buffering and intersection
@@ -89,10 +90,10 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
                     buffered_lines_gdf = gpd.GeoDataFrame(geometry=buffered_lines, crs="EPSG:3857")
                     buffered_lines_gdf = buffered_lines_gdf.to_crs("EPSG:4326")  # Back to WGS84
                 except Exception as buffer_err:
-                     st.error(f"Error buffering power lines: {buffer_err}")
+                     add_status_message(f"Error buffering power lines: {buffer_err}", "error")
                      # Revert to general analysis if buffering fails
                      risk_areas = wind_risk_areas_initial # Keep initial areas
-                     st.warning("Proceeding with general wind risk analysis due to power line buffering error.")
+                     add_status_message("Proceeding with general wind risk analysis due to power line buffering error.", "warning")
                      # Skip intersection step by ensuring intersection_performed is False
                      intersection_performed = False # Explicitly set just in case
                      # We don't set power_lines_loaded to False, as they were loaded but couldn't be processed
@@ -105,7 +106,7 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
                         joined_areas = gpd.sjoin(wind_risk_areas_proj, buffered_lines_gdf, how="inner", predicate="intersects")
 
                         if joined_areas.empty:
-                             st.info("Found areas with high/moderate wind risk, but none intersected buffered power lines.")
+                             add_status_message("Found areas with high/moderate wind risk, but none intersected buffered power lines.", "info")
                              # Keep risk_areas as wind_risk_areas_initial, but set flag for summary
                              no_intersection_found = True
                              risk_areas = wind_risk_areas_initial # Ensure we use initial areas
@@ -116,10 +117,10 @@ def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderat
                              intersection_performed = True # Mark intersection as successful
 
                     except Exception as join_err:
-                         st.error(f"Error during spatial join: {join_err}")
+                         add_status_message(f"Error during spatial join: {join_err}", "error")
                          # Revert to general analysis if join fails
                          risk_areas = wind_risk_areas_initial
-                         st.warning("Proceeding with general wind risk analysis due to spatial join error.")
+                         add_status_message("Proceeding with general wind risk analysis due to spatial join error.", "warning")
                          intersection_performed = False
 
         # --- Risk Calculation and Event Grouping (applied to 'risk_areas' regardless of source) ---
@@ -268,23 +269,22 @@ def handle_analyze_wind_risk(action, m):
     forecast_days = action.get("forecast_days", 3) # Default to 3 days
     analyze_power_lines = action.get("analyze_power_lines", False) # Default to False
     
-    # Intelligently determine if power line analysis is needed based on context
-    query_mentions_power_lines = "power" in str(action).lower() or "utility" in str(action).lower() or "transmission" in str(action).lower()
-    if query_mentions_power_lines and not analyze_power_lines:
-        analyze_power_lines = True
-        st.info("Detected power line context in query. Enabling power line analysis.")
+    # Only use power line analysis if explicitly requested with analyze_power_lines=true
+    # Remove automatic detection to prevent loading PA power lines data for non-PA regions
+    if analyze_power_lines:
+        add_status_message("Power line risk analysis explicitly requested.", "info")
     
     # Get the region parameter (REQUIRED)
     region_name = action.get("region")
     if not region_name:
-        st.error("Region parameter is required for wind risk analysis. Please specify a region (state or county).")
+        add_status_message("Region parameter is required for wind risk analysis. Please specify a region (state or county).", "error")
         return bounds
     
     # For UI feedback
     if analyze_power_lines:
-        st.info(f"Analyzing wind risk to power infrastructure in {region_name}")
+        add_status_message(f"Analyzing wind risk to power infrastructure in {region_name}", "info")
     else:
-        st.info(f"Analyzing general wind risk for region: {region_name}")
+        add_status_message(f"Analyzing general wind risk for region: {region_name}", "info")
 
     try:
         # 1. Get all weather forecast data for the selected init_date
@@ -292,12 +292,12 @@ def handle_analyze_wind_risk(action, m):
         weather_df_all = get_weather_forecast_data(selected_init_date)
 
         if weather_df_all is None or weather_df_all.empty:
-            st.warning("No weather data available for risk analysis.")
+            add_status_message("No weather data available for risk analysis.", "warning")
             return bounds
 
         # Ensure forecast_time is datetime and UTC
         if 'forecast_time' not in weather_df_all.columns:
-             st.error("Weather data missing 'forecast_time' column.")
+             add_status_message("Weather data missing 'forecast_time' column.", "error")
              return bounds
         try:
             # Make a copy before modification
@@ -309,11 +309,11 @@ def handle_analyze_wind_risk(action, m):
                  weather_df_all['forecast_time'] = weather_df_all['forecast_time'].dt.tz_convert('UTC')
             weather_df_all.dropna(subset=['forecast_time'], inplace=True) # drop rows where conversion failed
         except Exception as e:
-            st.error(f"Error processing forecast timestamps: {e}")
+            add_status_message(f"Error processing forecast timestamps: {e}", "error")
             return bounds
 
         if weather_df_all.empty:
-            st.warning("No valid weather timestamps found after processing.")
+            add_status_message("No valid weather timestamps found after processing.", "warning")
             return bounds
             
         # 2. Find the region boundary to use as a filter
@@ -324,7 +324,7 @@ def handle_analyze_wind_risk(action, m):
         
         if region_match is not None and not region_match.empty:
             region_polygon = region_match.geometry.iloc[0]
-            st.info(f"Found matching state: {region_match['state_name'].iloc[0]}")
+            add_status_message(f"Found matching state: {region_match['state_name'].iloc[0]}", "info")
         else:
             # Try counties dataset
             counties_gdf = get_us_counties()
@@ -332,10 +332,10 @@ def handle_analyze_wind_risk(action, m):
             
             if region_match is not None and not region_match.empty:
                 region_polygon = region_match.geometry.iloc[0]
-                st.info(f"Found matching county: {region_match['county_name'].iloc[0]}")
+                add_status_message(f"Found matching county: {region_match['county_name'].iloc[0]}", "info")
         
         if region_polygon is None:
-            st.error(f"Could not find region: {region_name}. Please specify a valid state or county name.")
+            add_status_message(f"Could not find region: {region_name}. Please specify a valid state or county name.", "error")
             return bounds
             
         # Add the region to the map for reference
@@ -417,10 +417,10 @@ def handle_analyze_wind_risk(action, m):
         with st.spinner("Filtering weather data by region..."):
             original_count = len(weather_gdf)
             weather_gdf = weather_gdf[weather_gdf.intersects(region_polygon)].copy()
-            st.info(f"Filtered weather data from {original_count} points to {len(weather_gdf)} points within {region_name}")
+            add_status_message(f"Filtered weather data from {original_count} points to {len(weather_gdf)} points within {region_name}", "info")
             
             if weather_gdf.empty:
-                st.warning(f"No weather data points found within {region_name}.")
+                add_status_message(f"No weather data points found within {region_name}.", "warning")
                 return bounds
 
         # 6. Get power lines data only if needed (analyze_wind_risk handles internal loading if None)
@@ -433,10 +433,10 @@ def handle_analyze_wind_risk(action, m):
             if power_lines_gdf is not None and not power_lines_gdf.empty:
                 original_count = len(power_lines_gdf)
                 power_lines_gdf = power_lines_gdf[power_lines_gdf.intersects(region_polygon)].copy()
-                st.info(f"Filtered power lines from {original_count} to {len(power_lines_gdf)} within {region_name}")
+                add_status_message(f"Filtered power lines from {original_count} to {len(power_lines_gdf)} within {region_name}", "info")
                 
                 if power_lines_gdf.empty:
-                    st.warning(f"No power lines found within {region_name}.")
+                    add_status_message(f"No power lines found within {region_name}.", "warning")
                 else:
                     # Always display power lines on the map when they're involved in analysis
                     folium.GeoJson(
@@ -457,7 +457,15 @@ def handle_analyze_wind_risk(action, m):
 
         # 7. Analyze wind risk
         analysis_desc = "power line impact" if analyze_power_lines else "general wind risk"
-        st.info(f"Analyzing {analysis_desc} for {region_name} over the {filter_msg} (high >= {high_threshold} m/s, moderate >= {moderate_threshold} m/s)...")
+        # Check if region is in Pennsylvania by name or abbreviation
+        is_pa_region = (region_name.lower() == "pennsylvania" or 
+                        region_name.lower() == "pa" or
+                        any(pa_term in region_name.lower() for pa_term in ["crawford", "fulton", "allegheny", "chester"]))
+        
+        # Only show PA-specific warning if NOT in Pennsylvania and power lines were requested
+        if analyze_power_lines and not is_pa_region:
+            add_status_message(f"NOTE: Power line data is only available for Pennsylvania regions. Results for {region_name} may be limited.", "warning")
+        add_status_message(f"Analyzing {analysis_desc} for {region_name} over the {filter_msg} (high >= {high_threshold} m/s, moderate >= {moderate_threshold} m/s)...", "info")
 
         risk_events, risk_summary = analyze_wind_risk(
             weather_gdf,
@@ -659,12 +667,12 @@ def handle_analyze_wind_risk(action, m):
                                  st.markdown(f"- Affected Power Lines (Est.): ~{event_data['affected_km']:.1f} km")
 
                 else: # Case where risk_found is True but events list is empty
-                     st.warning("Wind risk areas found, but no specific event timestamps generated.")
+                     add_status_message("Wind risk areas found, but no specific event timestamps generated.", "warning")
         else:
-            st.info(risk_summary.get("message", "No significant wind risk found.")) # Use .get() for safety
+            add_status_message(risk_summary.get("message", "No significant wind risk found."), "info") # Use .get() for safety
 
     except Exception as e:
-        st.error(f"Error handling wind risk analysis: {str(e)}")
+        add_status_message(f"Error handling wind risk analysis: {str(e)}", "error")
         # print(f"Detailed error in handle_analyze_wind_risk:") # Removing debug print
         traceback.print_exc() # Keep traceback enabled for now
 

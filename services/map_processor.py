@@ -9,6 +9,9 @@ import streamlit as st
 # Import core map functionality
 from services.map_core import initialize_map, fit_map_to_bounds
 
+# Import utilities
+from utils.streamlit_utils import add_status_message
+
 # Import action handlers
 from services.action_handlers import (
     handle_add_marker, 
@@ -50,7 +53,7 @@ def process_map_actions(actions, m):
                     all_bounds.extend(bounds)
             except Exception as e:
                 # Consistent error handling
-                st.error(f"Error processing {action_type} action: {str(e)}")
+                add_status_message(f"Error processing {action_type} action: {str(e)}", "error")
     
     # Fit the map to show all features (Single Responsibility)
     if all_bounds:

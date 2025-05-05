@@ -9,6 +9,7 @@ import os
 import json
 from datetime import datetime
 from shapely.geometry import mapping
+from utils.streamlit_utils import add_status_message
 
 # Function to fetch and cache US states data from BigQuery
 @st.cache_data(ttl=3600)
@@ -170,7 +171,7 @@ def get_local_shapefile(filepath, layer=None):
         GeoDataFrame containing the shapefile data
     """
     try:
-        st.info(f"Loading local shapefile: {filepath}")
+        add_status_message(f"Loading local shapefile: {filepath}", "info")
         gdf = gpd.read_file(filepath, layer=layer)
         
         # Ensure CRS is WGS84 for web mapping

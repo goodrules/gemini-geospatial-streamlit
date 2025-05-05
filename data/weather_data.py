@@ -8,6 +8,7 @@ import os
 from datetime import datetime, timedelta
 from data.bigquery_client import execute_query
 from dotenv import load_dotenv
+from utils.streamlit_utils import add_status_message
 
 # Load environment variables from .env file
 load_dotenv()
@@ -62,16 +63,16 @@ def get_weather_forecast_data(init_date):
             weather.init_time = TIMESTAMP("{init_date_str}")
         """
 
-        st.info(f"Querying weather data for init_date: {init_date_str}") # Info for debugging
+        add_status_message(f"Querying weather data for init_date: {init_date_str}", "info") # Info for debugging
                 
         # Execute the query (no .format needed anymore)
         forecast_df = execute_query(query)
             
         return forecast_df
     except Exception as e:
-        st.error(f"Error fetching weather forecast data: {e}")
+        add_status_message(f"Error fetching weather forecast data: {e}", "error")
         # Use fallback sample data if query fails
-        st.warning("Using sample weather data (BigQuery connection unavailable)")
+        add_status_message("Using sample weather data (BigQuery connection unavailable)", "warning")
         return get_sample_weather_data()
 
 def get_sample_weather_data():

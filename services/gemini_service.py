@@ -235,10 +235,16 @@ def get_system_prompt(selected_init_date):
         ]
     }}
     
-    IMPORTANT: When users ask about risk to power lines from high winds, potential power outages due to storms,
+    IMPORTANT: When users ask SPECIFICALLY about risk to POWER LINES from high winds, potential power outages due to storms,
     or if power lines are at risk of damage from weather, use the "analyze_wind_risk" action with analyze_power_lines=true.
+    If the user is only asking about general wind risk without mentioning power lines, do NOT set analyze_power_lines=true.
+    
     This action analyzes risk at specific forecast timestamps (06:00, 12:00, 18:00 UTC) within the specified number of days.
-    Example:
+    
+    IMPORTANT NOTE: Power line data is ONLY available for Pennsylvania. Even if the user asks about power line risk in
+    other states, setting analyze_power_lines=true will only show power lines for Pennsylvania regions.
+    
+    Example for power line wind risk in Pennsylvania:
     {{
         "response": "I've analyzed wind risk to power lines in Pennsylvania for the next 5 days. The map shows timestamps where high or moderate wind speeds intersect power line buffers.",
         "map_actions": [
@@ -248,7 +254,22 @@ def get_system_prompt(selected_init_date):
                 "forecast_days": 5,             # Number of days to analyze from the selected init_date
                 "high_threshold": 16.0,         # Optional: Wind speed (m/s) threshold for high risk (default: 16)
                 "moderate_threshold": 13.0,     # Optional: Wind speed (m/s) threshold for moderate risk (default: 13)
-                "analyze_power_lines": true     # REQUIRED: Set to true when query is about power line risk
+                "analyze_power_lines": true     # Set to true ONLY when query SPECIFICALLY asks about power line risk
+            }}
+        ]
+    }}
+    
+    Example for general wind risk (without power lines) in any region:
+    {{
+        "response": "I've analyzed the general wind risk in California for the next 3 days. The map shows areas with high and moderate wind speeds.",
+        "map_actions": [
+            {{
+                "action_type": "analyze_wind_risk",
+                "region": "California",         # Required: The region to analyze (state, county, etc.)
+                "forecast_days": 3,             # Number of days to analyze from the selected init_date
+                "high_threshold": 16.0,         # Optional: Wind speed (m/s) threshold for high risk (default: 16) 
+                "moderate_threshold": 13.0,     # Optional: Wind speed (m/s) threshold for moderate risk (default: 13)
+                "analyze_power_lines": false    # Set to false for general wind risk without power line analysis
             }}
         ]
     }}

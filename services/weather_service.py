@@ -10,6 +10,7 @@ import folium
 from data.weather_data import get_weather_forecast_data
 from utils.geo_utils import find_region_by_name, get_major_cities
 from services.map_core import serialize_geojson
+from utils.streamlit_utils import add_status_message
 
 def create_weather_tooltip(properties, parameter=None):
     """
@@ -180,7 +181,7 @@ def handle_show_weather(action, m):
         weather_df_all = get_weather_forecast_data(selected_init_date)
 
         if weather_df_all is None or weather_df_all.empty:
-            st.warning("No weather data available")
+            add_status_message("No weather data available", "warning")
             return bounds
 
         # Ensure forecast_time is datetime before proceeding
@@ -384,7 +385,7 @@ def handle_show_weather(action, m):
                 # 1. Try to match with a state
                 state_match = find_region_by_name(states_gdf, clean_location)
                 if state_match is not None and len(state_match) > 0:
-                    st.info(f"Filtering weather data for state: {state_match['state_name'].iloc[0]}")
+                    add_status_message(f"Filtering weather data for state: {state_match['state_name'].iloc[0]}", "info")
                     filter_geometry = state_match.unary_union
                     location_found = True
                     
@@ -392,7 +393,7 @@ def handle_show_weather(action, m):
                 if not location_found:
                     county_match = find_region_by_name(counties_gdf, clean_location)
                     if county_match is not None and len(county_match) > 0:
-                        st.info(f"Filtering weather data for county: {county_match['county_name'].iloc[0]}")
+                        add_status_message(f"Filtering weather data for county: {county_match['county_name'].iloc[0]}", "info")
                         filter_geometry = county_match.unary_union
                         location_found = True
                         
@@ -409,7 +410,7 @@ def handle_show_weather(action, m):
                         city_name = city_match['name'].iloc[0]
                         city_lat = city_match['lat'].iloc[0]
                         city_lon = city_match['lon'].iloc[0]
-                        st.info(f"Filtering weather data for city: {city_name}")
+                        add_status_message(f"Filtering weather data for city: {city_name}", "info")
                         
                         # Create a buffer around the city point
                         filter_geometry = create_city_buffer(city_lat, city_lon)
@@ -434,7 +435,7 @@ def handle_show_weather(action, m):
                     # Check for match in PA locations dictionary
                     for city_name, coords in pa_locations.items():
                         if city_name in location.lower() or location.lower() in city_name:
-                            st.info(f"Filtering weather data for area: {city_name.title()}")
+                            add_status_message(f"Filtering weather data for area: {city_name.title()}", "info")
                             lon, lat = coords
                             filter_geometry = create_city_buffer(lat, lon)
                             location_found = True
@@ -524,7 +525,7 @@ def handle_show_weather(action, m):
         bounds.append([bounds_total[3], bounds_total[2]])  # NE corner
 
         # Display success message (use filter_applied_message)
-        st.success(f"Displaying {parameter} forecast {filter_applied_message}")
+        add_status_message(f"Displaying {parameter} forecast {filter_applied_message}", "success")
 
     except Exception as e:
         st.error(f"Error displaying weather data: {str(e)}")
