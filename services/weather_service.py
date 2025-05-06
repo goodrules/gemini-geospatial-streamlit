@@ -10,6 +10,7 @@ import folium
 from data.weather_data import get_weather_forecast_data
 from utils.geo_utils import find_region_by_name, get_major_cities
 from services.map_core import serialize_geojson
+from utils.streamlit_utils import add_status_message
 
 def create_weather_tooltip(properties, parameter=None):
     """
@@ -170,21 +171,25 @@ def handle_show_weather(action, m):
     
     # Get parameters
     parameter = action.get("parameter", "temperature")  # Default to temperature
-    # Get date ONLY from Gemini action
-    selected_date_str = action.get("forecast_date") # Expecting "YYYY-MM-DD"
-    # If no date is provided by Gemini, maybe default or show all? Let's default for now if needed.
-    # We'll proceed assuming selected_date_str might be None or a valid date string.
-    # The filtering logic below handles the case where selected_date_str is None (shows all data).
-
+    selected_timestamp_str = action.get("forecast_timestamp") # Expecting full timestamp string
+    selected_date_str = action.get("forecast_date") # Fallback: Expecting "YYYY-MM-DD"
     location = action.get("location")  # Optional location filter
 
     try:
         # 1. Get all weather forecast data for the selected init_date
         selected_init_date = st.session_state.get("selected_init_date", date.today()) # Get selected init_date, default to today
-        weather_df_all = get_weather_forecast_data(selected_init_date)
+        
+        # Generate the simplified query for display in the spinner
+        from data.weather_data import get_weather_query
+        _, init_date_str = get_weather_query(selected_init_date)
+        simplified_query = f"SELECT weather.init_time, geography, forecast_time, temperature, precipitation, wind_speed FROM weathernext_graph_forecasts WHERE init_time = '{init_date_str}'"
+        
+        # Fetch the data with a spinner showing the query
+        with st.spinner(f"Executing: {simplified_query}"):
+            weather_df_all = get_weather_forecast_data(selected_init_date)
 
         if weather_df_all is None or weather_df_all.empty:
-            st.warning("No weather data available")
+            add_status_message("No weather data available", "warning")
             return bounds
 
         # Ensure forecast_time is datetime before proceeding
@@ -214,21 +219,63 @@ def handle_show_weather(action, m):
         min_val = weather_df_all[parameter].min()
         max_val = weather_df_all[parameter].max()
 
-        # 2. Filter by forecast date string (if selected)
-        weather_df_filtered = weather_df_all
-        if selected_date_str:
+        # 2. Filter by forecast timestamp, date (with max value), or latest date (with max value)
+        weather_df_filtered = pd.DataFrame() # Initialize empty DataFrame
+        filter_applied_message = "" # Initialize message
+
+        if selected_timestamp_str:
+            # --- Filter by specific timestamp ---
             try:
-                # Convert selected string date to date object for comparison
+                selected_timestamp_obj = pd.to_datetime(selected_timestamp_str)
+                if selected_timestamp_obj.tzinfo is None:
+                    selected_timestamp_obj = selected_timestamp_obj.tz_localize('UTC')
+                else:
+                    selected_timestamp_obj = selected_timestamp_obj.tz_convert('UTC')
+
+                weather_df_filtered = weather_df_all[weather_df_all['forecast_time'] == selected_timestamp_obj].copy()
+                filter_applied_message = f"for timestamp: {selected_timestamp_obj.strftime('%Y-%m-%d %H:%M UTC')}"
+            except Exception as e:
+                st.error(f"Invalid timestamp format provided: {selected_timestamp_str}. Error: {e}")
+                return bounds
+        elif selected_date_str:
+            # --- Filter by date, selecting MAX value per location ---
+            try:
                 selected_date_obj = pd.to_datetime(selected_date_str).date()
-                # Filter based on the date part of the timestamp column
-                weather_df_filtered = weather_df_all[weather_df_all['forecast_time'].dt.date == selected_date_obj].copy()
+                daily_data = weather_df_all[weather_df_all['forecast_time'].dt.date == selected_date_obj].copy()
+
+                if not daily_data.empty:
+                    # Group by location polygon and find index of max parameter value within each group
+                    idx = daily_data.groupby('geography_polygon')[parameter].idxmax()
+                    weather_df_filtered = daily_data.loc[idx]
+                    filter_applied_message = f"showing MAX {parameter} for date: {selected_date_obj.strftime('%Y-%m-%d')}"
+                    st.info(f"No specific time provided. Displaying the maximum '{parameter}' value for each location on {selected_date_obj.strftime('%Y-%m-%d')}.")
+                else:
+                    filter_applied_message = f"for date: {selected_date_obj.strftime('%Y-%m-%d')}" # No data found msg
+
             except ValueError:
                 st.error(f"Invalid date format provided: {selected_date_str}. Please use YYYY-MM-DD.")
                 return bounds
+        else:
+            # --- Filter by LATEST date, selecting MAX value per location ---
+            if not weather_df_all.empty:
+                latest_date = weather_df_all['forecast_time'].dt.date.max()
+                st.info(f"No date or time provided. Using latest available date: {latest_date.strftime('%Y-%m-%d')}")
+                daily_data = weather_df_all[weather_df_all['forecast_time'].dt.date == latest_date].copy()
 
+                if not daily_data.empty:
+                    # Group by location polygon and find index of max parameter value
+                    idx = daily_data.groupby('geography_polygon')[parameter].idxmax()
+                    weather_df_filtered = daily_data.loc[idx]
+                    filter_applied_message = f"showing MAX {parameter} for latest date: {latest_date.strftime('%Y-%m-%d')}"
+                    st.info(f"Displaying the maximum '{parameter}' value for each location on the latest available date ({latest_date.strftime('%Y-%m-%d')}).")
+                else:
+                     filter_applied_message = f"for latest date: {latest_date.strftime('%Y-%m-%d')}" # No data found msg
+            else:
+                 filter_applied_message = "as no data was found" # Overall empty data case
+
+        # Check if filtering resulted in empty dataframe
         if weather_df_filtered.empty:
-            date_msg = f" for date: {selected_date_str}" if selected_date_str else ""
-            st.warning(f"No weather data available{date_msg}")
+            st.warning(f"No weather data available {filter_applied_message}")
             return bounds
 
         # 3. Convert filtered data to GeoDataFrame, handling geometry errors robustly
@@ -346,7 +393,7 @@ def handle_show_weather(action, m):
                 # 1. Try to match with a state
                 state_match = find_region_by_name(states_gdf, clean_location)
                 if state_match is not None and len(state_match) > 0:
-                    st.info(f"Filtering weather data for state: {state_match['state_name'].iloc[0]}")
+                    add_status_message(f"Filtering weather data for state: {state_match['state_name'].iloc[0]}", "info")
                     filter_geometry = state_match.unary_union
                     location_found = True
                     
@@ -354,7 +401,7 @@ def handle_show_weather(action, m):
                 if not location_found:
                     county_match = find_region_by_name(counties_gdf, clean_location)
                     if county_match is not None and len(county_match) > 0:
-                        st.info(f"Filtering weather data for county: {county_match['county_name'].iloc[0]}")
+                        add_status_message(f"Filtering weather data for county: {county_match['county_name'].iloc[0]}", "info")
                         filter_geometry = county_match.unary_union
                         location_found = True
                         
@@ -371,7 +418,7 @@ def handle_show_weather(action, m):
                         city_name = city_match['name'].iloc[0]
                         city_lat = city_match['lat'].iloc[0]
                         city_lon = city_match['lon'].iloc[0]
-                        st.info(f"Filtering weather data for city: {city_name}")
+                        add_status_message(f"Filtering weather data for city: {city_name}", "info")
                         
                         # Create a buffer around the city point
                         filter_geometry = create_city_buffer(city_lat, city_lon)
@@ -396,7 +443,7 @@ def handle_show_weather(action, m):
                     # Check for match in PA locations dictionary
                     for city_name, coords in pa_locations.items():
                         if city_name in location.lower() or location.lower() in city_name:
-                            st.info(f"Filtering weather data for area: {city_name.title()}")
+                            add_status_message(f"Filtering weather data for area: {city_name.title()}", "info")
                             lon, lat = coords
                             filter_geometry = create_city_buffer(lat, lon)
                             location_found = True
@@ -411,7 +458,7 @@ def handle_show_weather(action, m):
                         st.warning(f"No weather data available within {location}")
                         return bounds
                 else:
-                    st.warning(f"Could not find location: {location}. Showing all Pennsylvania weather data.")
+                    st.warning(f"Could not find location: {location}. Showing all weather data.")
             except Exception as e:
                 st.warning(f"Could not filter by location: {str(e)}")
         
@@ -459,11 +506,11 @@ def handle_show_weather(action, m):
                 'fillOpacity': 0.5 # Increased transparency
             }
         
-        # Create layer name based on available info
+        # Create layer name based on available info (use filter_applied_message)
         layer_name = f"{parameter.capitalize()} Forecast"
         if location:
             layer_name += f" - {location}"
-        layer_name += f" - {selected_date_str}" if selected_date_str else " - All Dates"
+        layer_name += f" - {filter_applied_message}" # Use dynamic message
 
         # Add the weather layer to the map with interactive tooltip
         weather_layer = folium.GeoJson(
@@ -485,9 +532,8 @@ def handle_show_weather(action, m):
         bounds.append([bounds_total[1], bounds_total[0]])  # SW corner
         bounds.append([bounds_total[3], bounds_total[2]])  # NE corner
 
-        # Display success message
-        date_msg = f" for {selected_date_str}" if selected_date_str else " for all available dates"
-        st.success(f"Displaying {parameter} forecast{date_msg}")
+        # Display success message (use filter_applied_message)
+        add_status_message(f"Displaying {parameter} forecast {filter_applied_message}", "success")
 
     except Exception as e:
         st.error(f"Error displaying weather data: {str(e)}")

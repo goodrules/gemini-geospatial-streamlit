@@ -95,12 +95,13 @@ A Python-based interactive geospatial analysis application that combines the pow
 - "Show all counties in Florida"
 - "Highlight ZIP code 90210 on the map"
 
-### Weather Data (Currently Pennsylvania Only)
-- "Show me the temperature forecast for Pennsylvania"
-- "What's the precipitation forecast for PA?"
-- "Show the wind speed data for Pittsburgh area"
-- "Display weather data for Philadelphia"
-- "Are any power lines at risk of high wind speed in the next 10 days?"
+### Weather Data
+- "Show the temperature forecast for California"
+- "What is the wind speed forecast for Chicago?"
+- "Display weather data for Texas"
+- "Compare precipitation forecasts for Seattle and Miami"
+- "Are any power lines at risk of high wind speed in the next 10 days in PA?"
+- "Show me wind risk for power lines in Crawford County for the next 5 days"
 
 ## New Features
 
@@ -118,11 +119,11 @@ A Python-based interactive geospatial analysis application that combines the pow
 
 ## Notes
 
-- Weather data is based on forecasts available via [Google WeatherNext](https://deepmind.google/technologies/weathernext/) and is currently limited to Pennsylvania
+- Weather data is based on forecasts available via [Google WeatherNext](https://deepmind.google/technologies/weathernext/).
+- Local datasets (like power lines and flood zones) are currently limited to specific areas (e.g., Pennsylvania).
 - The application uses cached data to improve performance; use the "Reload Geospatial Data" button if needed
 
 ## Contributors
 
 - [goodrules](https://github.com/goodrules)
 - [dklanac](https://github.com/dklanac)
-

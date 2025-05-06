@@ -50,3 +50,6 @@ def init_session_state():
                 parts=[types.Part.from_text(text="""{"response": "Hello! I'm your geospatial assistant. I can help with location analysis, mapping, and spatial queries. What would you like to explore today?", "map_actions": []}""")]
             ),
         ]
+    # Add status message container
+    if "status_messages" not in st.session_state:
+        st.session_state.status_messages = []
