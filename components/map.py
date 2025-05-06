@@ -23,7 +23,7 @@ def render_map():
     display_status_messages()
     
     # Display the map
-    st_folium(m, width=900, height=800)
+    st_folium(m, height=800, use_container_width=True)
     
     # Display query information for weather or wind risk actions
     if isinstance(st.session_state.map_actions, list) and len(st.session_state.map_actions) > 0:
