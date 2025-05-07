@@ -205,9 +205,9 @@ def get_crawford_flood_zones():
     return get_local_shapefile("data/local/Crawford_Flood_Zones/Crawford_FP.shp")
 
 @st.cache_data(ttl=3600)
-def get_pa_power_lines(use_geojson=True):
+def get_us_power_lines(use_geojson=True):
     """
-    Load Pennsylvania power lines data. 
+    Load power lines data. 
     
     Args:
         use_geojson: If True, use the simplified GeoJSON points file.
@@ -218,8 +218,8 @@ def get_pa_power_lines(use_geojson=True):
     """
     if use_geojson:
         try:
-            add_status_message("Loading power lines from GeoJSON points file", "info")
-            geojson_path = "data/local/power_lines_points_pa.geojson"
+            add_status_message("Loading power lines from US-wide GeoJSON points file", "info")
+            geojson_path = "data/local/power_lines_points_us.geojson"
             gdf = gpd.read_file(geojson_path)
             
             # Ensure CRS is WGS84 for web mapping
@@ -238,9 +238,6 @@ def get_pa_power_lines(use_geojson=True):
             return gdf
         except Exception as e:
             st.error(f"Error loading power lines GeoJSON: {str(e)}")
-            # Fall back to shapefile if GeoJSON fails
-            add_status_message("Falling back to power lines shapefile", "warning")
-            return get_local_shapefile("data/local/PA_Trans_Lines/Electric_Power_Transmission_Lines_B.shp")
     else:
         # Use original shapefile
         return get_local_shapefile("data/local/PA_Trans_Lines/Electric_Power_Transmission_Lines_B.shp")
@@ -279,12 +276,12 @@ def initialize_app_data():
                 st.session_state.flood_zones_loaded = False
                 st.warning("Failed to load Crawford flood zones data.")
                 
-            trans_lines = get_pa_power_lines(use_geojson=True)
+            trans_lines = get_us_power_lines(use_geojson=True)
             if trans_lines is not None:
                 st.session_state.power_lines_loaded = True
             else:
                 st.session_state.power_lines_loaded = False
-                st.warning("Failed to load PA power lines data.")
+                st.warning("Failed to load power lines data.")
             
             st.session_state.data_initialized = True
             

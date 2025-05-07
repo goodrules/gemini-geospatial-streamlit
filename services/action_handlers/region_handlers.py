@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 from services.action_handlers.base_handler import create_handler, ActionDict, BoundsList
 from data.geospatial_data import (get_us_states, get_us_counties, get_us_zipcodes,
-                                 get_crawford_flood_zones, get_pa_power_lines)
+                                 get_crawford_flood_zones, get_us_power_lines)
 from utils.geo_utils import find_region_by_name, get_world_countries
 from utils.streamlit_utils import create_tooltip_html
 
@@ -82,7 +82,7 @@ def handle_highlight_region(action: ActionDict, m: folium.Map) -> BoundsList:
     elif region_type.lower() == "flood_zone":
         gdf = get_crawford_flood_zones()
     elif region_type.lower() == "power_line":
-        gdf = get_pa_power_lines()
+        gdf = get_us_power_lines()
     
     # Find the region
     region = find_region_by_name(gdf, region_name)
