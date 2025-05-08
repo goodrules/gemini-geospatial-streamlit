@@ -13,7 +13,7 @@ from services.map_core import initialize_map, fit_map_to_bounds
 from utils.streamlit_utils import add_status_message
 
 # Import action handlers
-from services.action_handlers import (
+from action_handlers import (
     handle_add_marker, 
     handle_add_circle,
     handle_highlight_region,
@@ -21,12 +21,10 @@ from services.action_handlers import (
     handle_add_polygon, 
     handle_add_heatmap,
     handle_show_local_dataset,
-    handle_fit_bounds
+    handle_fit_bounds,
+    handle_analyze_wind_risk,
+    handle_show_weather
 )
-
-# Import specialized services
-from services.weather_service import handle_show_weather
-from services.risk_analyzer import handle_analyze_wind_risk
 
 def process_map_actions(actions, m):
     """Process map actions from AI responses and apply them to the map"""
@@ -45,6 +43,7 @@ def process_map_actions(actions, m):
             continue
             
         action_type = action.get("action_type")
+        print(f"action type is: {action_type}")
         if action_type in action_handlers:
             # Call the appropriate handler and collect bounds
             try:

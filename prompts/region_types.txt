@@ -1,0 +1,8 @@
+Supported region_type values for highlight_region: 
+- "state"
+- "county"
+- "zipcode"
+- "country"
+- "continent"
+- "flood_zone"
+- "power_line" 

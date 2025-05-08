@@ -89,6 +89,60 @@ def render_sidebar():
                     # If can't parse as JSON, show as text
                     st.code(st.session_state.last_api_response, language="text")
 
+        # Prompt template controls
+        with st.expander("Prompt Template Controls", expanded=False):
+            st.subheader("Feature Toggles")
+            st.caption("Enable or disable specific capabilities in the prompt template.")
+            
+            # Initialize session state values if they don't exist
+            # if "include_flood_notes" not in st.session_state:
+            #     st.session_state.include_flood_notes = True
+            if "include_power_lines" not in st.session_state:
+                st.session_state.include_power_lines = True
+            if "include_wind_risk" not in st.session_state:
+                st.session_state.include_wind_risk = True
+            if "debug_templates" not in st.session_state:
+                st.session_state.debug_templates = False
+                
+            # Create toggles for each feature
+            # flood_toggle = st.toggle(
+            #     "Flood Zones Information",
+            #     value=st.session_state.include_flood_notes,
+            #     help="Include instructions about flood zones in the prompt"
+            # )
+            power_lines_toggle = st.toggle(
+                "Power Lines Information", 
+                value=st.session_state.include_power_lines,
+                help="Include instructions about power lines in the prompt"
+            )
+            wind_risk_toggle = st.toggle(
+                "Wind Risk Analysis",
+                value=st.session_state.include_wind_risk,
+                help="Include instructions about wind risk analysis in the prompt"
+            )
+            
+            # Debug mode toggle
+            debug_toggle = st.toggle(
+                "Debug Template Rendering",
+                value=st.session_state.debug_templates,
+                help="Log template loading and rendering information"
+            )
+            
+            # Update session state values when toggles change
+            # if flood_toggle != st.session_state.include_flood_notes:
+            #     st.session_state.include_flood_notes = flood_toggle
+                
+            if power_lines_toggle != st.session_state.include_power_lines:
+                st.session_state.include_power_lines = power_lines_toggle
+                
+            if wind_risk_toggle != st.session_state.include_wind_risk:
+                st.session_state.include_wind_risk = wind_risk_toggle
+                
+            if debug_toggle != st.session_state.debug_templates:
+                st.session_state.debug_templates = debug_toggle
+                
+            # Show note about changes
+            st.caption("Changes to these toggles will take effect on the next prompt.")
 
         if st.button("Clear Chat"):
             reset_session_state()

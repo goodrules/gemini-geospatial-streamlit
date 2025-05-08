@@ -216,34 +216,32 @@ def get_pa_power_lines(use_geojson=True):
     Returns:
         GeoDataFrame containing power line data
     """
-    if use_geojson:
-        try:
-            add_status_message("Loading power lines from GeoJSON points file", "info")
-            geojson_path = "data/local/power_lines_points_pa.geojson"
-            gdf = gpd.read_file(geojson_path)
+    # if use_geojson:
+    try:
+        add_status_message("Loading power lines from GeoJSON points file", "info")
+        geojson_path = "data/local/power_lines_points_pa.geojson"
+        gdf = gpd.read_file(geojson_path)
+        
+        # Ensure CRS is WGS84 for web mapping
+        if gdf.crs is not None and gdf.crs != "EPSG:4326":
+            gdf = gdf.to_crs("EPSG:4326")
             
-            # Ensure CRS is WGS84 for web mapping
-            if gdf.crs is not None and gdf.crs != "EPSG:4326":
-                gdf = gdf.to_crs("EPSG:4326")
+        # Convert timestamp columns to string to avoid serialization issues
+        for col in gdf.columns:
+            if pd.api.types.is_datetime64_any_dtype(gdf[col]):
+                gdf[col] = gdf[col].astype(str)
                 
-            # Convert timestamp columns to string to avoid serialization issues
-            for col in gdf.columns:
-                if pd.api.types.is_datetime64_any_dtype(gdf[col]):
-                    gdf[col] = gdf[col].astype(str)
-                    
-            # Add a random value column for visualization if it doesn't exist
-            if 'value' not in gdf.columns:
-                gdf['value'] = np.random.randint(1, 100, size=len(gdf))
-                
-            return gdf
-        except Exception as e:
-            st.error(f"Error loading power lines GeoJSON: {str(e)}")
-            # Fall back to shapefile if GeoJSON fails
-            add_status_message("Falling back to power lines shapefile", "warning")
-            return get_local_shapefile("data/local/PA_Trans_Lines/Electric_Power_Transmission_Lines_B.shp")
-    else:
-        # Use original shapefile
-        return get_local_shapefile("data/local/PA_Trans_Lines/Electric_Power_Transmission_Lines_B.shp")
+        # Add a random value column for visualization if it doesn't exist
+        if 'value' not in gdf.columns:
+            gdf['value'] = np.random.randint(1, 100, size=len(gdf))
+            
+        return gdf
+    except Exception as e:
+        st.error(f"Error loading power lines GeoJSON: {str(e)}")
+        # Fall back to shapefile if GeoJSON fails
+    # else:
+    #     # Use original shapefile
+    #     return get_local_shapefile("data/local/PA_Trans_Lines/Electric_Power_Transmission_Lines_B.shp")
 
 def initialize_app_data():
     """Initialize and cache all geospatial data at app startup."""

@@ -50,7 +50,7 @@ def get_weather_query(init_date):
         f.`10m_v_component_of_wind`,
         SQRT(POW(f.`10m_u_component_of_wind`, 2) + POW(f.`10m_v_component_of_wind`, 2)) AS `wind_speed`   -- Calculate wind speed from U and V components
     FROM
-        `mg-ce-demos.weathernext_graph_forecasts.59572747_4_0` AS weather,
+        `weathernext_graph_forecasts.59572747_4_0` AS weather,
         UNNEST(weather.forecast) AS f
     JOIN
         us_geom_lookup AS us ON ST_INTERSECTS(weather.geography, us.us_outline_geom) -- Join only weather points inside state lines
