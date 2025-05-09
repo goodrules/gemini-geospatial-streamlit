@@ -12,5 +12,5 @@ section[data-testid="stMain"] {
 }
 .st-key-chat,
 .st-key-map {
-  @apply p-10;
+  @apply p-5;
 }

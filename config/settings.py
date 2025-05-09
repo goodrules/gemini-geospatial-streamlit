@@ -29,8 +29,6 @@ def init_session_state():
     if "zipcodes_loaded" not in st.session_state:
         st.session_state.zipcodes_loaded = False
     # Add new state variables for local datasets
-    if "flood_zones_loaded" not in st.session_state:
-        st.session_state.flood_zones_loaded = False
     if "power_lines_loaded" not in st.session_state:
         st.session_state.power_lines_loaded = False
     # Add weather data state variables

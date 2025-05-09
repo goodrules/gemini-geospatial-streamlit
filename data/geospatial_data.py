@@ -200,11 +200,6 @@ def get_local_shapefile(filepath, layer=None):
 
 # Function to load common local datasets
 @st.cache_data(ttl=3600)
-def get_crawford_flood_zones():
-    """Load Crawford County flood zone data"""
-    return get_local_shapefile("data/local/Crawford_Flood_Zones/Crawford_FP.shp")
-
-@st.cache_data(ttl=3600)
 def get_pa_power_lines(use_geojson=True):
     """
     Load Pennsylvania power lines data. 
@@ -269,14 +264,7 @@ def initialize_app_data():
                 st.session_state.zipcodes_loaded = False
                 st.warning("Failed to load US ZIP codes data.")
             
-            # Load local shapefiles
-            flood_zones = get_crawford_flood_zones()
-            if flood_zones is not None:
-                st.session_state.flood_zones_loaded = True
-            else:
-                st.session_state.flood_zones_loaded = False
-                st.warning("Failed to load Crawford flood zones data.")
-                
+            # Load local shapefiles                
             trans_lines = get_pa_power_lines(use_geojson=True)
             if trans_lines is not None:
                 st.session_state.power_lines_loaded = True
@@ -291,7 +279,6 @@ def initialize_app_data():
                 "states": st.session_state.states_loaded,
                 "counties": st.session_state.counties_loaded,
                 "zipcodes": st.session_state.zipcodes_loaded,
-                "flood_zones": st.session_state.flood_zones_loaded,
                 "trans_lines": st.session_state.trans_lines_loaded
             }
             
