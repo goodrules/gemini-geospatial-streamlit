@@ -166,5 +166,5 @@ section[data-testid="stMain"] {
   overflow-y: auto;
 }
 .st-key-chat, .st-key-map {
-  padding: calc(var(--spacing) * 10);
+  padding: calc(var(--spacing) * 5);
 }

@@ -55,6 +55,6 @@ Supported action_types:
 - "add_heatmap": Add a heatmap from data points
 - "add_line": Add a line connecting two or more points
 - "add_polygon": Add a polygon defined by three or more points
-- "show_local_dataset": Display a complete local dataset (flood_zones or power_lines in PA)
+- "show_local_dataset": Display a complete local dataset (power_lines in PA)
 - "show_weather": Display weather forecast data (temperature, precipitation, wind_speed) for a specified area
 - "analyze_wind_risk": Analyze and display areas where power lines in PA may be at risk from high winds 

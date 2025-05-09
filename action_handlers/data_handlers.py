@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import streamlit as st
 from action_handlers.base_handler import create_handler, ActionDict, BoundsList
-from data.geospatial_data import (get_crawford_flood_zones, get_pa_power_lines)
+from data.geospatial_data import  (get_pa_power_lines)
 from utils.streamlit_utils import add_status_message
 
 @create_handler
@@ -25,12 +25,7 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
     
     # Determine which dataset to load based on the dataset_name
     gdf = None
-    if dataset_name == "flood_zones" or dataset_name == "crawford_flood_zones":
-        gdf = get_crawford_flood_zones()
-        layer_name = "Crawford County Flood Zones"
-        default_color = "#0066cc"  # Blue for flood zones
-        fill_color = "#99ccff"    # Light blue fill
-    elif dataset_name == "power_lines" or dataset_name == "pa_power_lines":
+    if dataset_name == "power_lines" or dataset_name == "pa_power_lines":
         # Get region information from action parameters if available
         region_name = action.get("region", None)
         
@@ -126,7 +121,7 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
         default_color = "#0066cc"  # Blue for power lines
         fill_color = "#ffff00"    # Yellow fill
     else:
-        st.warning(f"Unknown local dataset: {dataset_name}")
+        # st.warning(f"Unknown local dataset: {dataset_name}")
         return bounds
             
     if gdf is None or gdf.empty:

@@ -95,8 +95,6 @@ def render_sidebar():
             st.caption("Enable or disable specific capabilities in the prompt template.")
             
             # Initialize session state values if they don't exist
-            # if "include_flood_notes" not in st.session_state:
-            #     st.session_state.include_flood_notes = True
             if "include_power_lines" not in st.session_state:
                 st.session_state.include_power_lines = True
             if "include_wind_risk" not in st.session_state:
@@ -105,11 +103,6 @@ def render_sidebar():
                 st.session_state.debug_templates = False
                 
             # Create toggles for each feature
-            # flood_toggle = st.toggle(
-            #     "Flood Zones Information",
-            #     value=st.session_state.include_flood_notes,
-            #     help="Include instructions about flood zones in the prompt"
-            # )
             power_lines_toggle = st.toggle(
                 "Power Lines Information", 
                 value=st.session_state.include_power_lines,
@@ -129,8 +122,6 @@ def render_sidebar():
             )
             
             # Update session state values when toggles change
-            # if flood_toggle != st.session_state.include_flood_notes:
-            #     st.session_state.include_flood_notes = flood_toggle
                 
             if power_lines_toggle != st.session_state.include_power_lines:
                 st.session_state.include_power_lines = power_lines_toggle

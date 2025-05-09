@@ -4,5 +4,4 @@ Supported region_type values for highlight_region:
 - "zipcode"
 - "country"
 - "continent"
-- "flood_zone"
 - "power_line" 

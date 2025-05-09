@@ -23,5 +23,7 @@ def render_map():
     display_status_messages()
     
     # Display the map
-    st_folium(m, height=800, use_container_width=True)
+    map_container = st.container(key="map_control")
+    with map_container:
+        st_folium(m, height=800, use_container_width=True)
 

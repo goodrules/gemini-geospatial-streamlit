@@ -50,7 +50,6 @@ def get_system_prompt(selected_init_date):
 
     # Get streamlit session state values for feature toggles
     # Default to True if not specified, allowing selective disabling
-    include_flood_notes = st.session_state.get("include_flood_notes", True)
     include_power_lines = st.session_state.get("include_power_lines", True)
     include_wind_risk = st.session_state.get("include_wind_risk", True)
     
@@ -67,7 +66,6 @@ def get_system_prompt(selected_init_date):
         "four_days_date": four_days_str,
         
         # Feature toggles
-        # "include_flood_zones_notes": include_flood_notes,
         "include_power_lines_notes": include_power_lines,
         "include_wind_risk_notes": include_wind_risk
     }
