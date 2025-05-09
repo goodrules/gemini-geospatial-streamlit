@@ -9,6 +9,7 @@ import os
 import json
 from datetime import datetime
 from shapely.geometry import mapping
+from utils.streamlit_utils import add_status_message
 
 # Function to fetch and cache US states data from BigQuery
 @st.cache_data(ttl=3600)
@@ -68,19 +69,25 @@ def get_us_counties():
             
         # Query to fetch US counties data
         query = """
-        SELECT 
-            geo_id, 
-            state_fips_code,
-            county_fips_code,
-            county_name,
-            lsad_name,
-            area_land_meters,
-            area_water_meters,
-            int_point_lat, 
-            int_point_lon,
-            ST_AsText(county_geom) as county_geom_wkt
-        FROM 
-            `bigquery-public-data.geo_us_boundaries.counties`
+        SELECT
+          counties_table.geo_id,
+          counties_table.state_fips_code,
+          counties_table.county_fips_code,
+          counties_table.county_name,
+          counties_table.lsad_name,
+          counties_table.area_land_meters,
+          counties_table.area_water_meters,
+          counties_table.int_point_lat,
+          counties_table.int_point_lon,
+          ST_ASTEXT(counties_table.county_geom) AS county_geom_wkt,
+          states_table.state,
+          states_table.state_name
+        FROM
+          `bigquery-public-data.geo_us_boundaries.counties` AS counties_table
+        JOIN
+          `bigquery-public-data.geo_us_boundaries.states` AS states_table
+        ON
+          counties_table.state_fips_code = states_table.state_fips_code;
         """
         
         # Run the query
@@ -170,7 +177,7 @@ def get_local_shapefile(filepath, layer=None):
         GeoDataFrame containing the shapefile data
     """
     try:
-        st.info(f"Loading local shapefile: {filepath}")
+        add_status_message(f"Loading local shapefile: {filepath}", "info")
         gdf = gpd.read_file(filepath, layer=layer)
         
         # Ensure CRS is WGS84 for web mapping
@@ -198,9 +205,43 @@ def get_crawford_flood_zones():
     return get_local_shapefile("data/local/Crawford_Flood_Zones/Crawford_FP.shp")
 
 @st.cache_data(ttl=3600)
-def get_pa_power_lines():
-    """Load Pennsylvania power lines data"""
-    return get_local_shapefile("data/local/PA_Trans_Lines/Electric_Power_Transmission_Lines_B.shp")
+def get_pa_power_lines(use_geojson=True):
+    """
+    Load Pennsylvania power lines data. 
+    
+    Args:
+        use_geojson: If True, use the simplified GeoJSON points file.
+                    If False, use the original shapefile with line geometries.
+    
+    Returns:
+        GeoDataFrame containing power line data
+    """
+    # if use_geojson:
+    try:
+        add_status_message("Loading power lines from GeoJSON points file", "info")
+        geojson_path = "data/local/power_lines_points_pa.geojson"
+        gdf = gpd.read_file(geojson_path)
+        
+        # Ensure CRS is WGS84 for web mapping
+        if gdf.crs is not None and gdf.crs != "EPSG:4326":
+            gdf = gdf.to_crs("EPSG:4326")
+            
+        # Convert timestamp columns to string to avoid serialization issues
+        for col in gdf.columns:
+            if pd.api.types.is_datetime64_any_dtype(gdf[col]):
+                gdf[col] = gdf[col].astype(str)
+                
+        # Add a random value column for visualization if it doesn't exist
+        if 'value' not in gdf.columns:
+            gdf['value'] = np.random.randint(1, 100, size=len(gdf))
+            
+        return gdf
+    except Exception as e:
+        st.error(f"Error loading power lines GeoJSON: {str(e)}")
+        # Fall back to shapefile if GeoJSON fails
+    # else:
+    #     # Use original shapefile
+    #     return get_local_shapefile("data/local/PA_Trans_Lines/Electric_Power_Transmission_Lines_B.shp")
 
 def initialize_app_data():
     """Initialize and cache all geospatial data at app startup."""
@@ -236,7 +277,7 @@ def initialize_app_data():
                 st.session_state.flood_zones_loaded = False
                 st.warning("Failed to load Crawford flood zones data.")
                 
-            trans_lines = get_pa_power_lines()
+            trans_lines = get_pa_power_lines(use_geojson=True)
             if trans_lines is not None:
                 st.session_state.power_lines_loaded = True
             else:

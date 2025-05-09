@@ -1,0 +1,91 @@
+[
+  {
+    "action_type": "add_marker",
+    "lat": 37.7749,
+    "lon": -122.4194,
+    "popup": "San Francisco",
+    "color": "blue"
+  },
+  {
+    "action_type": "highlight_region",
+    "region_name": "Georgia",
+    "region_type": "state",
+    "color": "blue",
+    "fill_color": "lightblue",
+    "fill_opacity": 0.5
+  },
+  {
+    "action_type": "highlight_region",
+    "region_name": "Fulton",
+    "region_type": "county",
+    "state_name": "Georgia",
+    "color": "red",
+    "fill_color": "orange",
+    "fill_opacity": 0.5
+  },
+  {
+    "action_type": "highlight_region",
+    "region_name": "30303",
+    "region_type": "zipcode",
+    "state_name": "Georgia",
+    "county_name": "Fulton",
+    "color": "purple",
+    "fill_color": "lavender",
+    "fill_opacity": 0.5
+  },
+  {
+    "action_type": "fit_bounds",
+    "bounds": "[[south, west], [north, east]]"
+  },
+  {
+    "action_type": "add_circle",
+    "lat": 37.7749,
+    "lon": -122.4194,
+    "radius": 5000,
+    "popup": "5km radius",
+    "color": "green"
+  },
+  {
+    "action_type": "add_heatmap",
+    "data_points": "[[lat1, lon1, intensity1], [lat2, lon2, intensity2], ...]",
+    "radius": 25
+  },
+  {
+    "action_type": "add_line",
+    "locations": "[[lat1, lon1], [lat2, lon2], ...]",
+    "popup": "Line description",
+    "color": "blue",
+    "weight": 3
+  },
+  {
+    "action_type": "add_polygon",
+    "locations": "[[lat1, lon1], [lat2, lon2], [lat3, lon3], ...]",
+    "popup": "Polygon description",
+    "color": "red",
+    "fill_color": "pink",
+    "fill_opacity": 0.5
+  },
+  {
+    "action_type": "show_local_dataset",
+    "dataset_name": "flood_zones",
+    "color": "#0066cc",
+    "weight": 4,
+    "fill_color": "#99ccff",
+    "fill_opacity": 0.5,
+    "tooltip_fields": [
+      "FIELD1",
+      "FIELD2"
+    ],
+    "tooltip_aliases": [
+      "Name",
+      "Value"
+    ]
+  },
+  {
+    "action_type": "show_weather",
+    "parameter": "temperature",
+    "forecast_timestamp": "2022-12-18T12:00:00Z",
+    "forecast_date": "2022-12-18",
+    "location": "Philadelphia"
+  }
+]

@@ -1,6 +1,7 @@
 import streamlit as st
 import geopandas as gpd
 import numpy as np
+from utils.streamlit_utils import add_status_message
 
 @st.cache_data
 def get_world_countries():
@@ -43,12 +44,83 @@ def find_region_by_name(gdf, region_name, column_names=None):
     """Use fuzzy matching to find a region in a GeoDataFrame."""
     if gdf is None or len(gdf) == 0:
         return None
-
+        
+    # Check if the input is empty
+    if not region_name or not isinstance(region_name, str):
+        return None
+    
+    # Check if the region name includes state info (e.g., "Erie County, PA" or "Erie, Pennsylvania")
+    county_state_pattern = None
+    county_part = None
+    state_part = None
+    
+    # Try to extract state information if it's provided in format "County, State"
+    if "," in region_name:
+        parts = [part.strip() for part in region_name.split(",")]
+        if len(parts) == 2:
+            county_part = parts[0]
+            state_part = parts[1]
+            
+    # Normalize input by removing trailing "County" if present and stripping spaces
+    # This is specifically to handle cases like "Crawford County" -> "Crawford"
+    normalized_name = region_name.lower().strip()
+    if normalized_name.endswith(" county"):
+        normalized_name = normalized_name[:-7].strip()  # Remove " county"
+    
+    # Handle ZIP codes
     if 'zip_code' in gdf.columns:
         exact_matches = gdf[gdf['zip_code'] == region_name]
         if len(exact_matches) > 0:
             return exact_matches
+    
+    # If both county and state are specified, try to match both
+    if county_part and state_part:
+        # Normalize county part by removing "County" if present
+        normalized_county = county_part.lower().strip()
+        if normalized_county.endswith(" county"):
+            normalized_county = normalized_county[:-7].strip()
+            
+        # Normalize state part
+        normalized_state = state_part.lower().strip()
         
+        # Check if we're working with counties data that has state information
+        if 'county_name' in gdf.columns and ('state_name' in gdf.columns or 'state' in gdf.columns):
+            # Try matching both county and state
+            if 'state_name' in gdf.columns:
+                # Try exact matches first
+                exact_matches = gdf[
+                    (gdf['county_name'].str.lower() == normalized_county) & 
+                    (gdf['state_name'].str.lower() == normalized_state)
+                ]
+                if not exact_matches.empty:
+                    return exact_matches
+                
+                # Try with state abbreviation (checking if state_part is a 2-letter code)
+                if len(normalized_state) == 2 and 'state' in gdf.columns:
+                    exact_matches = gdf[
+                        (gdf['county_name'].str.lower() == normalized_county) & 
+                        (gdf['state'].str.lower() == normalized_state)
+                    ]
+                    if not exact_matches.empty:
+                        return exact_matches
+                
+                # Try contains match for state name but exact for county
+                partial_matches = gdf[
+                    (gdf['county_name'].str.lower() == normalized_county) & 
+                    (gdf['state_name'].str.lower().str.contains(normalized_state))
+                ]
+                if not partial_matches.empty:
+                    return partial_matches
+            
+            # If state_name column doesn't exist but state does
+            elif 'state' in gdf.columns:
+                exact_matches = gdf[
+                    (gdf['county_name'].str.lower() == normalized_county) & 
+                    (gdf['state'].str.lower() == normalized_state)
+                ]
+                if not exact_matches.empty:
+                    return exact_matches
+    
     # Define columns to search - prioritize columns from BigQuery data
     if column_names is None:
         # Try common column names for region names
@@ -67,17 +139,31 @@ def find_region_by_name(gdf, region_name, column_names=None):
     if not search_columns:
         return None
     
-    # Try exact match first
+    # Try exact match first - with both original and normalized name
     for col in search_columns:
+        # Try original name first
         exact_matches = gdf[gdf[col].str.lower() == region_name.lower()]
         if len(exact_matches) > 0:
             return exact_matches
+            
+        # Then try normalized name (without "County")
+        if normalized_name != region_name.lower():
+            exact_matches = gdf[gdf[col].str.lower() == normalized_name]
+            if len(exact_matches) > 0:
+                return exact_matches
     
     # Try contains match
     for col in search_columns:
+        # Try original name first
         partial_matches = gdf[gdf[col].str.lower().str.contains(region_name.lower())]
         if len(partial_matches) > 0:
             return partial_matches
+            
+        # Then try normalized name (without "County")
+        if normalized_name != region_name.lower():
+            partial_matches = gdf[gdf[col].str.lower().str.contains(normalized_name)]
+            if len(partial_matches) > 0:
+                return partial_matches
     
     # No match found
     return None 

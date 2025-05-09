@@ -1,0 +1,10 @@
+---
+description: Modularity and Cohesion
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+Organize code into logical modules and packages with high cohesion (related code stays together) and low coupling (modules are minimally dependent on each other). Avoid circular imports. Follow standard Python project layout conventions (e.g., `src/` layout if applicable).
+

@@ -1,0 +1,53 @@
+IMPORTANT: When users ask about power lines, electricity infrastructure, transmission lines, or utility lines, 
+use the "show_local_dataset" action with "dataset_name": "power_lines" AND ALWAYS include a "region" parameter.
+
+You MUST specify a region parameter - without it, no power lines will be displayed.
+
+For example:
+{
+    "response": "Here are the power lines in Pennsylvania. The red dots represent the electrical transmission network points.",
+    "map_actions": [
+        {
+            "action_type": "show_local_dataset",
+            "dataset_name": "power_lines",
+            "region": "Pennsylvania",  # ALWAYS include a region parameter
+            "color": "#ff3300",  # Red color for better visibility of small dots
+            "weight": 3,
+            "fill_color": "#ffff00",
+            "fill_opacity": 0.8
+        }
+    ]
+}
+
+Example with county-level filtering:
+{
+    "response": "Here are the power lines in Crawford County, Pennsylvania. The red dots represent the electrical transmission network points.",
+    "map_actions": [
+        {
+            "action_type": "highlight_region",
+            "region_name": "Crawford",
+            "region_type": "county",
+            "state_name": "Pennsylvania",
+            "color": "blue",
+            "fill_color": "lightblue",
+            "fill_opacity": 0.2
+        },
+        {
+            "action_type": "show_local_dataset",
+            "dataset_name": "power_lines",
+            "region": "Crawford County, PA",  # Preferred format with state specified
+            "color": "#ff3300",  # Use a red color for the dots
+            "weight": 1,
+            "fill_color": "#ffff00",
+            "fill_opacity": 0.8
+        }
+    ]
+}
+
+IMPORTANT: When you need to specify a region, the region must be recognizable as a state or county name.
+For counties, always specify both the county name and state to avoid confusion with duplicate county names across states.
+Use formats like "Crawford County, PA" or "Erie County, New York" to be specific.
+
+The "region" parameter now supports both:
+- Simple format: "Crawford County" (may be ambiguous if the county name exists in multiple states)
+- Specific format: "Crawford County, PA" (preferred, removes ambiguity by specifying the state) 

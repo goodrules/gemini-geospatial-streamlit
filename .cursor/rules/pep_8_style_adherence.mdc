@@ -1,0 +1,14 @@
+---
+description: PEP 8 Style Adherence
+globs: 
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+Strictly follow PEP 8 style guidelines for all generated or modified Python code. This includes:
+- Naming conventions (snake_case for variables/functions/methods, PascalCase for classes).
+- Correct indentation (4 spaces).
+- Proper whitespace around operators and after commas.
+- Import ordering (standard library, third-party, local application, separated by blank lines).
+- Keeping line lengths reasonable (aim for under 80-100 characters where practical).

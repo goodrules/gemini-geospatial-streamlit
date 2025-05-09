@@ -1,0 +1,10 @@
+---
+description: Docstrings (PEP 257)
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+Write clear, concise, and informative docstrings for all public modules, classes, functions, and methods, adhering to PEP 257 conventions (e.g., Google style or NumPy style). Explain the purpose, arguments ($Args:$), return values ($Returns:$), and any exceptions raised ($Raises:$).
+

@@ -1,0 +1,10 @@
+---
+description: Appropriate Design Patterns
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+Consider standard design patterns (e.g., Factory, Strategy, Observer, Decorator, Singleton - use cautiously, Dependency Injection) where they simplify the design, improve flexibility, or enhance maintainability. Apply them Pythonically, leveraging Python's features like first-class functions and decorators where appropriate.
+

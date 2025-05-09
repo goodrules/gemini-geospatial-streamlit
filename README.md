@@ -1,128 +1,125 @@
-# Geospatial AI Assistant
+# Gemini Geospatial Streamlit
 
-A Python-based interactive geospatial analysis application that combines the power of Google's Gemini AI model with mapping capabilities to enable natural language interactions with geographic data and weather data from [Google WeatherNext](https://deepmind.google/technologies/weathernext/).
+A powerful interactive application that combines Google's Gemini AI with geospatial analysis capabilities, enabling natural language-driven exploration and visualization of geographic data.
 
-## Features
+![Map Interface Example](screenshot.png)
 
-- **AI-Powered Chat Interface**: Communicate with a geospatial-specialized AI assistant
-- **Dynamic Map Visualization**: See results directly on an interactive map
-- **Multiple Geospatial Operations**:
-  - Location marking and search
-  - Region highlighting (states, counties, countries, continents)
-  - Distance measurements and route visualization
-  - Line drawing between points
-  - Polygon creation
-  - Circular radius visualization
-  - Heatmap generation
-  - Weather data visualization (temperature, precipitation, wind speed)
-  - Wind risk analysis for power infrastructure
+## 🌟 Features
 
-## Quick Start Guide
+- **AI-Powered Chat Interface**: Interact with geospatial data using natural language queries
+- **Interactive Map Visualization**: Real-time display of geospatial data with multiple layer support
+- **Risk Analysis Tools**: Specialized tools for assessing weather risks to infrastructure
+- **Power Line Infrastructure Analysis**: Visualize and analyze power line networks
+- **Integrated Weather Data**: Access weather forecasts and analyze weather-related risks
 
-### Requirements
+## 📋 Requirements
 
-- Python 3.12+
-- Google Cloud project with Vertex AI API access
-- Google Cloud service account credentials
+- Python 3.10+
+- Google Gemini API key
+- Streamlit
+- GeoPandas and other geospatial libraries (see `requirements.txt` for full details)
 
-### Installation
+## 🚀 Quick Start
 
-1. **Clone this repository**:
+1. **Clone the repository**
    ```bash
    git clone https://github.com/yourusername/gemini-geospatial-streamlit.git
    cd gemini-geospatial-streamlit
    ```
 
-2. **Install dependencies**:
+2. **Create a virtual environment and install dependencies**
    ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
-3. **Set up Google Cloud credentials**:
+3. **Set up environment variables**
    
-   a. **Install Google Cloud SDK**:
-   - Download and install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
-   - Run `gcloud init` to initialize the SDK
-   
-   b. **Set up Application Default Credentials**:
-   ```bash
-   gcloud auth application-default login
+   Create a `.env` file in the project root with the following variable:
    ```
-   This will open a browser window for you to sign in with your Google account
-   
-   c. **Alternative: Use a service account key file**:
-   ```bash
-   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
+   PROJECT_ID=your_google_cloud_project_id
    ```
 
-4. **Configure environment variables**:
-   Create a `.env` file in the project root with:
-   ```bash
-   PROJECT_ID=your-project-id
-   REGION=your-gcp-region  # e.g., us-central1
-   ```
-
-5. **Start the application**:
+4. **Run the application**
    ```bash
    streamlit run app.py
    ```
 
-### Using the Application
+5. **Access the web interface**
+   
+   Open your browser and navigate to http://localhost:8501
 
-1. **Chat Interface**: The left panel contains the chat interface where you can:
-   - Type natural language questions about locations, maps, and weather
-   - View AI responses and any additional structured data
+## 🧩 Architecture
 
-2. **Interactive Map**: The right panel displays the map with visualizations based on your questions.
+The application is structured into several key components:
 
-3. **Sidebar Options**:
-   - Example queries to help you get started
-   - Weather data date selector
-   - Buttons to clear chat history or reload data
+- `app.py`: Main entry point for the Streamlit application
+- `components/`: UI components including chat interface, map, and sidebar
+- `services/`: Core services for Gemini integration, map processing, and risk analysis
+- `data/`: Data access and processing modules
+- `utils/`: Utility functions and helpers
+- `action_handlers/`: Handlers for map actions triggered by AI responses
 
-4. **Getting the best results**:
-   - Be specific about locations (e.g., "Philadelphia, PA" instead of just "Philadelphia")
-   - For weather data, specify the type (temperature, precipitation, wind speed)
-   - Try the example queries to see different map capabilities
+## 🔍 Usage Examples
 
-## Example Queries
+### Ask About Regional Weather Risks
 
-### Geospatial
-- "Show me the 10 largest cities in the United States"
-- "Highlight Fulton County, Georgia on the map"
-- "Draw a line connecting New York and Los Angeles"
-- "Compare the land area of Travis County, TX and King County, WA"
-- "Show all counties in Florida"
-- "Highlight ZIP code 90210 on the map"
+```
+"What areas in Pennsylvania are at high risk for wind damage to power lines in the next 3 days?"
+```
 
-### Weather Data (Currently Pennsylvania Only)
-- "Show me the temperature forecast for Pennsylvania"
-- "What's the precipitation forecast for PA?"
-- "Show the wind speed data for Pittsburgh area"
-- "Display weather data for Philadelphia"
-- "Are any power lines at risk of high wind speed in the next 10 days?"
+### Analyze Specific Regions
 
-## New Features
+```
+"Show me the power infrastructure in Chester County and highlight areas with potential weather impacts."
+```
 
-- **Wind Risk Analysis**: Analyze and visualize areas where power infrastructure may be affected by high winds
-- **Multiple Weather Event Support**: Handle and visualize multiple wind or weather events across different dates
-- **Improved Location Search**: Enhanced location matching for more accurate region highlighting
-- **Power Line Visualization**: Display Pennsylvania's power transmission network
+### Compare Multiple Regions
 
-## Troubleshooting
+```
+"Compare the weather risks between Philadelphia and Pittsburgh for the next week."
+```
 
-- **BigQuery Connection Issues**: The app includes fallback data if BigQuery isn't available
-- **Map Not Updating**: Use the "Clear Cache" button in the sidebar or the "Clear cache" option in the Streamlit menu
-- **Missing Visualizations**: Ensure your query is specific about the location and data type
-- **Performance Issues**: Weather data processing can be resource-intensive; try filtering by specific dates
+## 🧠 How It Works
 
-## Notes
+1. User submits a query through the chat interface
+2. The query is processed by the Gemini AI model with a specialized system prompt
+3. Gemini generates a structured response including:
+   - Text response for the user
+   - Map action instructions
+   - Optional structured data for visualization
+4. The application processes the map actions to update the interactive map
+5. Results are displayed to the user in both chat and map interfaces
 
-- Weather data is based on forecasts available via [Google WeatherNext](https://deepmind.google/technologies/weathernext/) and is currently limited to Pennsylvania
-- The application uses cached data to improve performance; use the "Reload Geospatial Data" button if needed
+## 🛠️ Configuration
 
-## Contributors
+You can configure the application behavior in the sidebar, including:
 
-- [goodrules](https://github.com/goodrules)
-- [dklanac](https://github.com/dklanac)
+- Model parameters
+- Feature toggles for specific capabilities
+- Date selection for weather forecasts
+- Debug panel for viewing system prompts and API responses
 
+## 📊 Data Sources
+
+The application uses several data sources:
+
+- Weather forecast data
+- US geographic boundaries (states, counties)
+- Power infrastructure data for Pennsylvania
+- Custom local datasets (as configured)
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

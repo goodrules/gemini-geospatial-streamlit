@@ -1,0 +1,24 @@
+{% include "intro.txt" %}
+
+{% include "action_types.txt" %}
+
+{% include "region_types.txt" %}
+
+{# You can use conditionals to include or exclude sections based on context variables #}
+{% if include_flood_zones_notes is not defined or include_flood_zones_notes %}
+  {% include "flood_zones_notes.txt" %}
+{% endif %}
+
+{% if include_power_lines_notes is not defined or include_power_lines_notes %}
+  {% include "power_lines_notes.txt" %}
+{% endif %}
+
+{% if include_wind_risk_notes is not defined or include_wind_risk_notes %}
+  {% include "wind_risk_notes.txt" %}
+{% endif %}
+
+{% if include_weather_notes is not defined or include_weather_notes %}
+  {% include "weather_notes.txt" %}
+{% endif %}
+
+{% include "data_notes.txt" %} 

@@ -1,0 +1,10 @@
+---
+description: Dependency Inversion Principle (DIP)
+globs:
+  - "**/*.py"  # Apply to all Python files
+  - "**/*.pyi" # Apply to Python stub files
+alwaysApply: true
+---
+
+High-level modules should not depend directly on low-level modules; both should depend on abstractions. Abstractions should not depend on details; details should depend on abstractions. Use techniques like dependency injection to provide concrete implementations of abstract interfaces (ABCs or Protocols) at runtime, promoting loose coupling.
+
