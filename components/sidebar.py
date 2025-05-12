@@ -154,7 +154,7 @@ def render_example_questions():
     
     geo_examples = [
         "Compare the land area of Travis County, TX and King County, WA",
-        "Show me power lines near Philadelphia, PA",
+        "Show me power lines near Atlanta, GA",
         "What's the land area of ZIP code 10001 in New York?",
     ]
     

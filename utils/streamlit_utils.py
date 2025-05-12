@@ -157,7 +157,7 @@ def display_status_messages():
         success_messages = [msg["text"] for msg in st.session_state.status_messages if msg["type"] == "success"]
         
         # Display in a compact expander
-        with st.expander("Status Messages", expanded=True):
+        with st.expander("Status Messages", expanded=False):
             cols = st.columns([1, 1])
             
             # Column 1: Info and Success

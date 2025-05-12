@@ -378,17 +378,14 @@ def handle_show_weather(action, m):
                     
                 # Clean up location string for better matching
                 clean_location = location.lower()
+                st.info(f"Processing state-level query for: {clean_location}")
                 
-                # For state-level queries, we need special handling
-                if clean_location == "pennsylvania" or clean_location == "pa":
-                    # Keep it as is for exact state name match
-                    st.info(f"Processing state-level query for: {clean_location}")
-                else:
-                    # Remove common words that might interfere with matching
-                    for word in ["county", "parish", "borough", "city", "town", "township", "state of", "commonwealth of"]:
-                        clean_location = clean_location.replace(word, "").strip()
-                    # Remove any trailing commas and whitespace
-                    clean_location = clean_location.rstrip(",").strip()
+                # Remove common words that might interfere with matching
+                for word in ["county", "parish", "borough", "city", "town", "township", "state of", "commonwealth of"]:
+                    clean_location = clean_location.replace(word, "").strip()
+                    
+                # Remove any trailing commas and whitespace
+                clean_location = clean_location.rstrip(",").strip()
                 
                 # 1. Try to match with a state
                 state_match = find_region_by_name(states_gdf, clean_location)
@@ -424,32 +421,7 @@ def handle_show_weather(action, m):
                         filter_geometry = create_city_buffer(city_lat, city_lon)
                         location_found = True
                 
-                # 4. For PA-specific locations not in datasets but commonly requested
-                if not location_found:
-                    # Common PA locations with approximate coordinates
-                    pa_locations = {
-                        "philadelphia": (-75.1652, 39.9526),
-                        "pittsburgh": (-79.9959, 40.4406),
-                        "harrisburg": (-76.8867, 40.2732),
-                        "allentown": (-75.4947, 40.6023),
-                        "erie": (-80.0852, 42.1292),
-                        "reading": (-75.9269, 40.3356),
-                        "scranton": (-75.6624, 41.4090),
-                        "lancaster": (-76.3055, 40.0379),
-                        "bethlehem": (-75.3705, 40.6259),
-                        "altoona": (-78.3947, 40.5187)
-                    }
-                    
-                    # Check for match in PA locations dictionary
-                    for city_name, coords in pa_locations.items():
-                        if city_name in location.lower() or location.lower() in city_name:
-                            add_status_message(f"Filtering weather data for area: {city_name.title()}", "info")
-                            lon, lat = coords
-                            filter_geometry = create_city_buffer(lat, lon)
-                            location_found = True
-                            break
-                
-                # 5. If we found a location, filter the weather GeoDataFrame
+                # 4. If we found a location, filter the weather GeoDataFrame
                 if location_found and filter_geometry is not None:
                     # Filter the GeoDataFrame to only include polygons that intersect with our area
                     weather_gdf = weather_gdf[weather_gdf.intersects(filter_geometry)]

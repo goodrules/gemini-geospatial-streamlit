@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import streamlit as st
 from action_handlers.base_handler import create_handler, ActionDict, BoundsList
-from data.geospatial_data import  (get_pa_power_lines)
+from data.geospatial_data import  (get_us_power_lines)
 from utils.streamlit_utils import add_status_message
 
 @create_handler
@@ -72,7 +72,7 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
         
         # Load power line data and immediately filter it
         add_status_message(f"Loading power line data and filtering for {region_name}...", "info")
-        gdf = get_pa_power_lines(use_geojson=True)
+        gdf = get_us_power_lines(use_geojson=True)
         
         if gdf is None or gdf.empty:
             add_status_message("Failed to load power line data.", "error")
@@ -84,27 +84,30 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
         # No special cases - just log the information
         add_status_message(f"Processing region: {region_name}", "info")
         
-        # Create a buffer around the region for more lenient filtering
-        buffered_region = region_polygon.buffer(0.05)  # ~5km buffer in degrees
-        add_status_message(f"Using buffered region for power line filtering", "info")
+        # Create a buffer around the region that follows its shape
+        # Use a small buffer (~2km) to include points just outside the region boundary
+        buffered_region = region_polygon.buffer(0.02)  # ~2km buffer in degrees
+        add_status_message(f"Created shape-following buffer for power line filtering", "info")
         
         # Display min/max coordinates of power line data as debugging info
         pl_bounds = gdf.total_bounds
         add_status_message(f"Power line data bounds: {pl_bounds}", "info")
         
-        # Get the bounds of the region
-        minx, miny, maxx, maxy = region_polygon.bounds
+        # First get a rough subset using the bounding box for performance
+        # (much faster initial filter before the more precise spatial operation)
+        minx, miny, maxx, maxy = buffered_region.bounds
+        rough_filtered = gdf[(gdf.geometry.x >= minx) & 
+                             (gdf.geometry.y >= miny) & 
+                             (gdf.geometry.x <= maxx) & 
+                             (gdf.geometry.y <= maxy)].copy()
         
-        # Add a simple buffer to the bounds (0.1 degrees ~ 10km)
-        buffered_bounds = (minx - 0.1, miny - 0.1, maxx + 0.1, maxy + 0.1)
-        add_status_message(f"Using buffered bounds: {buffered_bounds}", "info")
+        add_status_message(f"Initial bounding box filter: {len(rough_filtered)} points", "info")
         
-        # Simple filtering by checking if points fall within bounds
-        # This is a simpler approach that will work with any polygon bounds
-        filtered_gdf = gdf[(gdf.geometry.x >= buffered_bounds[0]) & 
-                           (gdf.geometry.y >= buffered_bounds[1]) & 
-                           (gdf.geometry.x <= buffered_bounds[2]) & 
-                           (gdf.geometry.y <= buffered_bounds[3])].copy()
+        # Then do precise filtering using the actual buffered shape
+        # This is more accurate but slower, so we only do it on the subset
+        filtered_gdf = rough_filtered[rough_filtered.intersects(buffered_region)].copy()
+        
+        add_status_message(f"Final shape-based filter: {len(filtered_gdf)} points", "info")
         
         add_status_message(f"Power lines in buffered bounds: {len(filtered_gdf)}", "info")
         
@@ -164,23 +167,72 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
             # Extract coordinates from the Point geometry
             coords = (row.geometry.y, row.geometry.x)
             
-            # Create tooltip for this point
-            point_tooltip = f"Voltage: {row.get('VOLTAGE', 'N/A')}, Owner: {row.get('OWNER', 'N/A')}"
+            # Create enhanced tooltip with additional information
+            point_tooltip = f"""
+            <div style='min-width: 200px;'>
+                <b>Voltage:</b> {row.get('VOLTAGE', 'N/A')} kV<br>
+                <b>Type:</b> {row.get('TYPE', 'N/A')}<br>
+                <b>Owner:</b> {row.get('OWNER', 'N/A')}<br>
+                <b>Description:</b> {row.get('NAICS_DESC', 'N/A')}
+            </div>
+            """
             
-            # Create a slightly larger circle with partial opacity
+            # Get voltage for color determination
+            voltage = row.get('VOLTAGE', 0)
+            
+            # Create color spectrum based on voltage
+            # Low voltage (0-100kV): Yellow
+            # Medium voltage (100-300kV): Orange
+            # High voltage (300-500kV): Red
+            # Very high voltage (500+ kV): Dark red
+            if voltage < 100:
+                line_color = '#FFD700'  # Yellow for low voltage
+            elif voltage < 300:
+                line_color = '#FFA500'  # Orange for medium voltage
+            elif voltage < 500:
+                line_color = '#FF0000'  # Red for high voltage
+            else:
+                line_color = '#8B0000'  # DarkRed for very high voltage
+            
+            # Use custom color or fall back to action-specified color
+            display_color = action.get("color", line_color)
+            
+            # Create a circle with voltage-based colors
             folium.Circle(
                 location=coords,
-                radius=300,  # 300 meters as requested
-                color=action.get("color", '#ff3300'),  # Use action color or default to orange-red
+                radius=400,  # Adjusted to 400 meters
+                color=display_color,  # Voltage-based color
                 weight=2,  # Line weight
                 fill=True,
-                fill_color=action.get("color", '#ff3300'),  # Use action color or default to orange-red
+                fill_color=display_color,  # Match fill color to outline
                 fill_opacity=0.7,  # Partial opacity as requested
                 tooltip=point_tooltip,  # Use tooltip only, no popup to avoid markers
             ).add_to(dot_group)
         
         # Add the feature group to the map
         dot_group.add_to(m)
+        
+        # Add legend for voltage colors
+        legend_html = '''
+        <div style="position: fixed; 
+                    bottom: 50px; right: 50px; 
+                    border: 2px solid grey; 
+                    z-index: 9999; 
+                    background-color: white;
+                    padding: 10px;
+                    opacity: 0.8;
+                    border-radius: 5px;
+                    ">
+          <p style="margin: 0; padding-bottom: 5px;"><b>Power Line Voltage</b></p>
+          <p style="margin: 0">
+            <i class="fa fa-circle" style="color:#FFD700;"></i> < 100 kV<br>
+            <i class="fa fa-circle" style="color:#FFA500;"></i> 100-300 kV<br>
+            <i class="fa fa-circle" style="color:#FF0000;"></i> 300-500 kV<br>
+            <i class="fa fa-circle" style="color:#8B0000;"></i> 500+ kV
+          </p>
+        </div>
+        '''
+        m.get_root().html.add_child(folium.Element(legend_html))
     else:
         # For line data, use regular GeoJSON style
         geo_layer = folium.GeoJson(

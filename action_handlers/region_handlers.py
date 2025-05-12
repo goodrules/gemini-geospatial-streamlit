@@ -3,7 +3,7 @@ import folium
 import json
 import pandas as pd
 import streamlit as st
-from data.geospatial_data import (get_us_states, get_us_counties, get_us_zipcodes, get_pa_power_lines)
+from data.geospatial_data import (get_us_states, get_us_counties, get_us_zipcodes, get_us_power_lines)
 from utils.streamlit_utils import add_status_message
 from action_handlers.base_handler import create_handler, ActionDict, BoundsList
 from utils.geo_utils import find_region_by_name, get_world_countries
@@ -80,7 +80,7 @@ def handle_highlight_region(action: ActionDict, m: folium.Map) -> BoundsList:
             bounds.append([region_bounds[3], region_bounds[2]])  # NE corner
         return bounds
     elif region_type.lower() == "power_line":
-        gdf = get_pa_power_lines()
+        gdf = get_us_power_lines()
     
     # Find the region
     region = find_region_by_name(gdf, region_name)

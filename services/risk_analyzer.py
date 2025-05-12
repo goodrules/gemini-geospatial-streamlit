@@ -8,7 +8,7 @@ from shapely import wkt # Ensure wkt is imported
 import folium
 from branca.colormap import LinearColormap
 from data.weather_data import get_weather_forecast_data
-from data.geospatial_data import get_pa_power_lines, get_us_states, get_us_counties
+from data.geospatial_data import get_us_power_lines, get_us_states, get_us_counties
 from services.map_core import serialize_geojson
 from services.weather_service import get_weather_color_scale
 from datetime import date, timedelta # Ensure date and timedelta are imported
@@ -483,7 +483,7 @@ def handle_analyze_wind_risk(action, m):
             else:
                 # Load power line data
                 add_status_message(f"Loading power line data for {region_name}...", "info")
-                power_lines_gdf = get_pa_power_lines(use_geojson=True)
+                power_lines_gdf = get_us_power_lines(use_geojson=True)
                 
                 if power_lines_gdf is None or power_lines_gdf.empty:
                     add_status_message("Failed to load power line data.", "error")
@@ -493,19 +493,24 @@ def handle_analyze_wind_risk(action, m):
                     pl_bounds = power_lines_gdf.total_bounds
                     add_status_message(f"Power line data bounds: {pl_bounds}", "info")
                     
-                    # Get the bounds of the region
-                    minx, miny, maxx, maxy = region_polygon.bounds
+                    # Create a buffer around the region that follows its shape
+                    # Use a small buffer (~2km) to include points just outside the region boundary
+                    buffered_region = region_polygon.buffer(0.02)  # ~2km buffer in degrees
+                    add_status_message(f"Created shape-following buffer for risk analysis", "info")
                     
-                    # Add a simple buffer to the bounds (0.1 degrees ~ 10km)
-                    buffered_bounds = (minx - 0.1, miny - 0.1, maxx + 0.1, maxy + 0.1)
-                    add_status_message(f"Using buffered bounds for risk analysis: {buffered_bounds}", "info")
+                    # First get a rough subset using the bounding box for performance
+                    # (much faster initial filter before the more precise spatial operation)
+                    minx, miny, maxx, maxy = buffered_region.bounds
+                    rough_filtered = power_lines_gdf[(power_lines_gdf.geometry.x >= minx) & 
+                                                     (power_lines_gdf.geometry.y >= miny) & 
+                                                     (power_lines_gdf.geometry.x <= maxx) & 
+                                                     (power_lines_gdf.geometry.y <= maxy)].copy()
                     
-                    # Simple filtering by checking if points fall within bounds
-                    # This is a simpler approach that will work with any polygon bounds
-                    filtered_gdf = power_lines_gdf[(power_lines_gdf.geometry.x >= buffered_bounds[0]) & 
-                                                   (power_lines_gdf.geometry.y >= buffered_bounds[1]) & 
-                                                   (power_lines_gdf.geometry.x <= buffered_bounds[2]) & 
-                                                   (power_lines_gdf.geometry.y <= buffered_bounds[3])].copy()
+                    add_status_message(f"Initial bounding box filter: {len(rough_filtered)} points", "info")
+                    
+                    # Then do precise filtering using the actual buffered shape
+                    # This is more accurate but slower, so we only do it on the subset
+                    filtered_gdf = rough_filtered[rough_filtered.intersects(buffered_region)].copy()
                     
                     add_status_message(f"Power lines in buffered bounds: {len(filtered_gdf)}", "info")
                     
@@ -525,13 +530,13 @@ def handle_analyze_wind_risk(action, m):
         # 7. Analyze wind risk
         analysis_desc = "power line impact" if analyze_power_lines else "general wind risk"
         # Check if region is in Pennsylvania by name or abbreviation
-        is_pa_region = (region_name.lower() == "pennsylvania" or 
-                        region_name.lower() == "pa" or
-                        any(pa_term in region_name.lower() for pa_term in ["crawford", "fulton", "allegheny", "chester"]))
+        #is_pa_region = (region_name.lower() == "pennsylvania" or 
+        #                region_name.lower() == "pa" or
+        #                any(pa_term in region_name.lower() for pa_term in ["crawford", "fulton", "allegheny", "chester"]))
         
         # Only show PA-specific warning if NOT in Pennsylvania and power lines were requested
-        if analyze_power_lines and not is_pa_region:
-            add_status_message(f"NOTE: Power line data is only available for Pennsylvania regions. Results for {region_name} may be limited.", "warning")
+        #if analyze_power_lines and not is_pa_region:
+        #    add_status_message(f"NOTE: Power line data is only available for Pennsylvania regions. Results for {region_name} may be limited.", "warning")
         add_status_message(f"Analyzing {analysis_desc} for {region_name} over the {filter_msg} (high >= {high_threshold} m/s, moderate >= {moderate_threshold} m/s)...", "info")
 
         risk_events, risk_summary = analyze_wind_risk(
@@ -851,17 +856,41 @@ def handle_analyze_wind_risk(action, m):
                                         # Extract coordinates from the Point geometry
                                         coords = (row.geometry.y, row.geometry.x)
                                         
-                                        # Create tooltip for this point
-                                        point_tooltip = f"Voltage: {row.get('VOLTAGE', 'N/A')} kV, Owner: {row.get('OWNER', 'N/A')}"
+                                        # Create enhanced tooltip with additional information
+                                        point_tooltip = f"""
+                                        <div style='min-width: 200px;'>
+                                            <b>Voltage:</b> {row.get('VOLTAGE', 'N/A')} kV<br>
+                                            <b>Type:</b> {row.get('TYPE', 'N/A')}<br>
+                                            <b>Owner:</b> {row.get('OWNER', 'N/A')}<br>
+                                            <b>Description:</b> {row.get('NAICS_DESC', 'N/A')}
+                                        </div>
+                                        """
                                         
-                                        # Create a slightly larger circle with partial opacity
+                                        # Get voltage for color determination
+                                        voltage = row.get('VOLTAGE', 0)
+                                        
+                                        # Create color spectrum based on voltage
+                                        # Low voltage (0-100kV): Yellow
+                                        # Medium voltage (100-300kV): Orange
+                                        # High voltage (300-500kV): Red
+                                        # Very high voltage (500+ kV): Dark red
+                                        if voltage < 100:
+                                            line_color = '#FFD700'  # Yellow for low voltage
+                                        elif voltage < 300:
+                                            line_color = '#FFA500'  # Orange for medium voltage
+                                        elif voltage < 500:
+                                            line_color = '#FF0000'  # Red for high voltage
+                                        else:
+                                            line_color = '#8B0000'  # DarkRed for very high voltage
+                                        
+                                        # Create a circle with voltage-based colors
                                         folium.Circle(
                                             location=coords,
-                                            radius=300,  # 300 meters as requested
-                                            color='#ff3300',  # Orange-red
+                                            radius=400,  # Adjusted to 400 meters
+                                            color=line_color,  # Voltage-based color
                                             weight=2,  # Line weight
                                             fill=True,
-                                            fill_color='#ff3300',  # Orange-red
+                                            fill_color=line_color,  # Match fill color to outline
                                             fill_opacity=0.7,  # Partial opacity as requested
                                             tooltip=point_tooltip,  # Use tooltip only, no popup to avoid markers
                                             zIndex=1000  # High z-index to ensure they're on top
