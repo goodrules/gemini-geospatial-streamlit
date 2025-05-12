@@ -1,17 +1,37 @@
 IMPORTANT: When users ask about power lines, electricity infrastructure, transmission lines, or utility lines, 
 use the "show_local_dataset" action with "dataset_name": "power_lines" AND ALWAYS include a "region" parameter.
 
+POWER LINE DATA IS AVAILABLE FOR THE ENTIRE UNITED STATES. You can show power lines for any US state or county.
+
+IMPORTANT: ONLY STATES AND COUNTIES ARE SUPPORTED AS REGIONS. Cities are not directly supported. When users ask about cities, use the state or county that contains that city instead.
+
 You MUST specify a region parameter - without it, no power lines will be displayed.
 
 For example:
 {
-    "response": "Here are the power lines in Pennsylvania. The red dots represent the electrical transmission network points.",
+    "response": "Here are the power lines in Georgia. The red lines represent the electrical transmission network.",
     "map_actions": [
         {
             "action_type": "show_local_dataset",
             "dataset_name": "power_lines",
-            "region": "Pennsylvania",  # ALWAYS include a region parameter
-            "color": "#ff3300",  # Red color for better visibility of small dots
+            "region": "Georgia",  # ALWAYS include a region parameter
+            "color": "#ff3300",  # Red color for better visibility
+            "weight": 3,
+            "fill_color": "#ffff00",
+            "fill_opacity": 0.8
+        }
+    ]
+}
+
+Example for a city request (using the containing county):
+{
+    "response": "Here are the power lines in Fulton County, Georgia, which includes Atlanta. The red lines represent the electrical transmission network in this area.",
+    "map_actions": [
+        {
+            "action_type": "show_local_dataset",
+            "dataset_name": "power_lines",
+            "region": "Fulton County, GA",  # Using county that contains the city
+            "color": "#ff3300",
             "weight": 3,
             "fill_color": "#ffff00",
             "fill_opacity": 0.8
@@ -21,7 +41,32 @@ For example:
 
 Example with county-level filtering:
 {
-    "response": "Here are the power lines in Crawford County, Pennsylvania. The red dots represent the electrical transmission network points.",
+    "response": "Here are the power lines in Fulton County, Georgia. The red lines represent the electrical transmission network in this county.",
+    "map_actions": [
+        {
+            "action_type": "highlight_region",
+            "region_name": "Fulton",
+            "region_type": "county",
+            "state_name": "Georgia",
+            "color": "blue",
+            "fill_color": "lightblue",
+            "fill_opacity": 0.2
+        },
+        {
+            "action_type": "show_local_dataset",
+            "dataset_name": "power_lines",
+            "region": "Fulton County, GA",  # Preferred format with state specified
+            "color": "#ff3300",  # Use a red color for the lines
+            "weight": 1,
+            "fill_color": "#ffff00",
+            "fill_opacity": 0.8
+        }
+    ]
+}
+
+Example with Pennsylvania:
+{
+    "response": "Here are the power lines in Crawford County, Pennsylvania. The red lines represent the electrical transmission network in this county.",
     "map_actions": [
         {
             "action_type": "highlight_region",
@@ -35,8 +80,8 @@ Example with county-level filtering:
         {
             "action_type": "show_local_dataset",
             "dataset_name": "power_lines",
-            "region": "Crawford County, PA",  # Preferred format with state specified
-            "color": "#ff3300",  # Use a red color for the dots
+            "region": "Crawford County, PA",
+            "color": "#ff3300",
             "weight": 1,
             "fill_color": "#ffff00",
             "fill_opacity": 0.8
@@ -46,8 +91,12 @@ Example with county-level filtering:
 
 IMPORTANT: When you need to specify a region, the region must be recognizable as a state or county name.
 For counties, always specify both the county name and state to avoid confusion with duplicate county names across states.
-Use formats like "Crawford County, PA" or "Erie County, New York" to be specific.
+Use formats like "Crawford County, PA" or "Fulton County, Georgia" to be specific.
 
-The "region" parameter now supports both:
-- Simple format: "Crawford County" (may be ambiguous if the county name exists in multiple states)
-- Specific format: "Crawford County, PA" (preferred, removes ambiguity by specifying the state) 
+The "region" parameter supports these formats:
+- State name: "California", "Texas", "Florida", "Georgia"
+- County formats: 
+  - Simple: "Crawford County" (may be ambiguous if the county name exists in multiple states)
+  - Specific: "Crawford County, PA" or "Fulton County, GA" (preferred, removes ambiguity by specifying the state)
+
+If a user asks about power lines in a city (e.g., "Show power lines in Atlanta"), respond with power lines in the containing county or state (e.g., "Here are the power lines in Fulton County, Georgia, which includes Atlanta").
