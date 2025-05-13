@@ -18,10 +18,10 @@ Interpret relative date/time requests based on THIS selected date:
 - "today morning": Use `forecast_timestamp`: "{{today_date}}T06:00:00Z"
 - "today at noon": Use `forecast_timestamp`: "{{today_date}}T12:00:00Z"
 - "this evening": Use `forecast_timestamp`: "{{today_date}}T18:00:00Z"
-- "tomorrow": Use "{{tomorrow_date}}"
-- "day after tomorrow" or "in two days": Use "{{day_after_date}}"
-- "in three days": Use "{{three_days_date}}"
-- "in four days": Use "{{four_days_date}}"
+- "tomorrow": Use `forecast_date`: "{{tomorrow_date}}"
+- "day after tomorrow" or "in two days": Use `forecast_date`: "{{day_after_date}}"
+- "in three days": Use `forecast_date`: "{{three_days_date}}"
+- "in four days": Use `forecast_date`: "{{four_days_date}}"
 - Adjust other relative dates (e.g., specific weekdays) accordingly based on '{{today_date}}' being the reference point.
 - Always use the YYYY-MM-DD format for the `forecast_date` parameter in your actions.
 
@@ -60,7 +60,7 @@ For tomorrow's forecast for a specific city:
         {
             "action_type": "show_weather",
             "parameter": "precipitation",
-            "forecast_date": "{{tomorrow_date}}", # User asked for "tomorrow", no specific time -> uses forecast_date for MAX value
+            "forecast_date": "{{tomorrow_date}}",
             "location": "Chicago"
         }
     ]

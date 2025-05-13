@@ -25,11 +25,25 @@ def get_weather_query(init_date):
     Returns:
         tuple: (query string, formatted init_date string)
     """
-    # Format the date argument for the query
-    if isinstance(init_date, str):
-        init_date_str = init_date
-    else: # Assume datetime.date object
-        init_date_str = init_date.strftime('%Y-%m-%d')
+    # Format the date argument for the query with more robust handling
+    try:
+        if isinstance(init_date, str):
+            # Try to parse the string to ensure it's a valid date format
+            parsed_date = datetime.strptime(init_date, '%Y-%m-%d').date()
+            init_date_str = init_date
+        else: # Assume datetime.date object
+            init_date_str = init_date.strftime('%Y-%m-%d')
+            
+        # Explicitly store the formatted date in session state for consistency
+        st.session_state.current_query_date = init_date_str
+            
+    except (ValueError, TypeError):
+        # Fallback to today if there's an error parsing the date
+        st.warning(f"Invalid date format for init_date: {init_date}, defaulting to today")
+        init_date_str = datetime.now().strftime('%Y-%m-%d')
+        
+    # Add debug print
+    # st.write(f"DEBUG: Using init_date: {init_date_str} (original type: {type(init_date).__name__})")
 
     # Define the query using the formatted string
     query = f"""

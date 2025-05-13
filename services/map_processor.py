@@ -5,6 +5,10 @@ This is the main entry point for map processing operations, handling the
 coordination between different map actions and their implementations.
 """
 import streamlit as st
+import logging
+
+# Setup module logger
+logger = logging.getLogger(__name__)
 
 # Import core map functionality
 from services.map_core import initialize_map, fit_map_to_bounds
@@ -43,7 +47,7 @@ def process_map_actions(actions, m):
             continue
             
         action_type = action.get("action_type")
-        print(f"action type is: {action_type}")
+        logger.info(f"Processing action type: {action_type}")
         if action_type in action_handlers:
             # Call the appropriate handler and collect bounds
             try:
