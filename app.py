@@ -15,7 +15,8 @@ setup_page_config()
 # Initialize session state
 init_session_state()
 
-css_file = os.path.join("tw", "app.css")
+# Update path to css file
+css_file = os.path.join("components", "tw", "app.css")
 
 if os.path.exists(css_file):
     css = load_css(css_file)

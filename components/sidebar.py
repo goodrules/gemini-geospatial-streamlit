@@ -35,6 +35,20 @@ def render_sidebar():
                 try:
                     from data.weather_data import get_weather_forecast_data
                     get_weather_forecast_data.clear()
+                    
+                    # Also clear caches from weather service functions
+                    from services.weather_service.processing import fetch_weather_data
+                    if hasattr(fetch_weather_data, "clear"):
+                        fetch_weather_data.clear()
+                    
+                    # Clear any action-related caches
+                    if "map_actions" in st.session_state:
+                        st.session_state.map_actions = []
+
+                    # Reset status messages
+                    if "status_messages" in st.session_state:
+                        st.session_state.status_messages = []
+                        
                     st.success(f"Weather data cache cleared for new init date: {new_init_date}")
                 except Exception as e:
                     st.warning(f"Could not clear weather data cache: {e}")
