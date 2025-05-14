@@ -1,61 +1,25 @@
 import streamlit as st
 from data.geospatial_data import initialize_app_data
-from utils.streamlit_utils import reset_session_state
+from utils.streamlit_utils import reset_session_state, extract_date_from_prompt
 # Removed unused import: from data.weather_data import get_unique_forecast_dates_str
+from datetime import date, timedelta # Import date objects
 
 def render_sidebar():
     """Render the sidebar with settings and examples"""
     with st.sidebar:
         st.header("Settings")
-        from datetime import date, timedelta # Import date objects
 
+        # Display current init_date clearly - first element and yellow color
+        current_init_date = st.session_state.get("selected_init_date", date.today())
+        formatted_date = current_init_date.strftime("%B %d, %Y") if hasattr(current_init_date, "strftime") else str(current_init_date)
+        st.warning(f"📅 **Current forecast date:** {formatted_date}")
+
+        # Info about date specification in prompts
+        st.info("Specify dates in your prompt like \"May 15, 2023\" to use weather data from that date.")
+        
         # Data source info
         st.info("Using US States, Counties, and Zip Code data from Google BigQuery public datasets.")
-
-        # Weather Init Date Selector
-        # Removed unused variable: forecast_date_strs = get_unique_forecast_dates_str(st.session_state.selected_init_date)
-        # Display the selector widget
-        with st.expander("Weather Data Settings"):
-            today = date.today()
-            min_date = date(2022, 1, 1)
-            # Ensure default selected date isn't before min_date
-            default_date = st.session_state.selected_init_date if st.session_state.selected_init_date >= min_date else min_date
-
-            new_init_date = st.date_input(
-                "Select Weather Forecast Init Date:",
-                value=default_date,
-                min_value=min_date,
-                max_value=today, # Can't select future dates for init_date
-                key="init_date_selector"
-            )
-            # Update session state if the date changed
-            if new_init_date != st.session_state.selected_init_date:
-                st.session_state.selected_init_date = new_init_date
-                # Clear weather-related cache when init_date changes
-                try:
-                    from data.weather_data import get_weather_forecast_data
-                    get_weather_forecast_data.clear()
-                    
-                    # Also clear caches from weather service functions
-                    from services.weather_service.processing import fetch_weather_data
-                    if hasattr(fetch_weather_data, "clear"):
-                        fetch_weather_data.clear()
-                    
-                    # Clear any action-related caches
-                    if "map_actions" in st.session_state:
-                        st.session_state.map_actions = []
-
-                    # Reset status messages
-                    if "status_messages" in st.session_state:
-                        st.session_state.status_messages = []
-                        
-                    st.success(f"Weather data cache cleared for new init date: {new_init_date}")
-                except Exception as e:
-                    st.warning(f"Could not clear weather data cache: {e}")
-                st.rerun() # Rerun to fetch new data based on the selected date
-
-            st.caption("Select the initialization date for the weather forecast data (data available back to 2022).")
-            
+        
         # Debug panel - displays the raw API request and response
         with st.expander("Debug Panel", expanded=False):
             st.subheader("Last API Exchange")
@@ -166,23 +130,56 @@ def render_example_questions():
     """Display example questions users can click on"""
     st.header("Example Questions")
     
+    weather_examples = [
+        "Are any power lines at risk of high wind speed in the next 10 days in Erie County, PA?",
+        "Show me temperature risks to oil wells in North Dakota starting on February 13, 2021 where temperatures are lower than -15˚F",
+        "Show the temperature forecast for California",
+        "What is the wind speed forecast for Chicago?",
+    ]
+
     geo_examples = [
         "Compare the land area of Travis County, TX and King County, WA",
         "Show me power lines near Atlanta, GA",
         "What's the land area of ZIP code 10001 in New York?",
     ]
     
-    weather_examples = [
-        "Show the temperature forecast for California",
-        "What is the wind speed forecast for Chicago?",
-        "Are any power lines at risk of high wind speed in the next 10 days in Erie County, PA?"
-    ]
-    
     st.subheader("Geospatial & Weather")
-    examples = geo_examples + weather_examples
+    examples = weather_examples + geo_examples
     
     for example in examples:
         if st.button(example):
+            # Check for date in the example prompt
+            extracted_date = extract_date_from_prompt(example)
+            if extracted_date:
+                # Update selected_init_date if a date was found in the prompt
+                if extracted_date != st.session_state.selected_init_date:
+                    previous_date = st.session_state.selected_init_date
+                    st.session_state.selected_init_date = extracted_date
+                    # Clear weather-related cache when init_date changes
+                    try:
+                        from data.weather_data import get_weather_forecast_data
+                        get_weather_forecast_data.clear()
+                        
+                        # Also clear caches from weather service functions
+                        from services.weather_service.processing import fetch_weather_data
+                        if hasattr(fetch_weather_data, "clear"):
+                            fetch_weather_data.clear()
+                        
+                        # Clear any action-related caches
+                        if "map_actions" in st.session_state:
+                            st.session_state.map_actions = []
+
+                        # Reset status messages
+                        if "status_messages" in st.session_state:
+                            st.session_state.status_messages = []
+                        
+                        # Display formatted dates for better readability
+                        formatted_new = extracted_date.strftime("%B %d, %Y")
+                        formatted_old = previous_date.strftime("%B %d, %Y") if hasattr(previous_date, "strftime") else "default date"
+                        st.success(f"📅 Date changed: {formatted_old} → {formatted_new}")
+                    except Exception as e:
+                        st.warning(f"Could not clear weather data cache: {e}")
+            
             # Simulate clicking the example
             st.session_state.messages.append({"role": "user", "content": example})
             with st.spinner("Generating response..."):
