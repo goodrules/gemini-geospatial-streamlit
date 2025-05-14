@@ -2,6 +2,8 @@ import streamlit as st
 import json
 import pandas as pd
 from services.gemini_service import get_gemini_response
+from utils.streamlit_utils import extract_date_from_prompt
+from datetime import date
 
 def render_chat_interface():
     """Render the chat interface with message history and input"""
@@ -47,6 +49,38 @@ def handle_chat_input():
     """Handle user chat input and generate AI responses"""
     prompt = st.chat_input("Ask about locations, spatial analysis, etc.")
     if prompt:
+        # Check for date in the prompt
+        extracted_date = extract_date_from_prompt(prompt)
+        if extracted_date:
+            # Update selected_init_date if a date was found in the prompt
+            if extracted_date != st.session_state.selected_init_date:
+                previous_date = st.session_state.selected_init_date
+                st.session_state.selected_init_date = extracted_date
+                # Clear weather-related cache when init_date changes
+                try:
+                    from data.weather_data import get_weather_forecast_data
+                    get_weather_forecast_data.clear()
+                    
+                    # Also clear caches from weather service functions
+                    from services.weather_service.processing import fetch_weather_data
+                    if hasattr(fetch_weather_data, "clear"):
+                        fetch_weather_data.clear()
+                    
+                    # Clear any action-related caches
+                    if "map_actions" in st.session_state:
+                        st.session_state.map_actions = []
+
+                    # Reset status messages
+                    if "status_messages" in st.session_state:
+                        st.session_state.status_messages = []
+                    
+                    # Display formatted dates for better readability
+                    formatted_new = extracted_date.strftime("%B %d, %Y")
+                    formatted_old = previous_date.strftime("%B %d, %Y") if hasattr(previous_date, "strftime") else "default date"
+                    st.success(f"📅 Date changed: {formatted_old} → {formatted_new}")
+                except Exception as e:
+                    st.warning(f"Could not clear weather data cache: {e}")
+        
         # Add user message to chat
         st.session_state.messages.append({"role": "user", "content": prompt})
         

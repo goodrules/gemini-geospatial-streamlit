@@ -27,7 +27,8 @@ from action_handlers import (
     handle_show_local_dataset,
     handle_fit_bounds,
     handle_analyze_wind_risk,
-    handle_show_weather
+    handle_show_weather,
+    handle_unsafe_temperature
 )
 
 def process_map_actions(actions, m):
@@ -89,5 +90,6 @@ def get_action_handlers():
         "add_circle": handle_add_circle,
         "add_heatmap": handle_add_heatmap,
         "add_line": handle_add_line,
-        "add_polygon": handle_add_polygon
+        "add_polygon": handle_add_polygon,
+        "unsafe_temperature": handle_unsafe_temperature
     }

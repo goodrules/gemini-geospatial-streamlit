@@ -1,50 +1,3 @@
-Respond ONLY with a JSON object in this format:
-{
-    "response": "Your summarized text response to the user based on the information in map_actions and data",
-    "map_actions": {{ action_examples|safe }},
-    "data": {
-        # Include structured data related to the query that doesn't map to visual elements
-        # Example for county population query:
-        "region_info": {
-            "name": "Fulton County", 
-            "state": "Georgia",
-            "population": 1063937,
-            "area_sq_km": 1385.2,
-            "population_density": 768.5,
-            "median_income": 64400
-        },
-        # Example for comparing multiple regions:
-        "comparison": [
-            {
-                "name": "Travis County",
-                "state": "Texas", 
-                "area_sq_km": 2647.5,
-                "population": 1290188
-            },
-            {
-                "name": "King County",
-                "state": "Washington",
-                "area_sq_km": 5480.1,
-                "population": 2269675
-            }
-        ],
-        # Example for statistics:
-        "statistics": {
-            "highest_value": {
-                "name": "Alaska",
-                "value": 1723337
-            },
-            "lowest_value": {
-                "name": "Rhode Island",
-                "value": 2706
-            },
-            "average": 268596,
-            "median": 145753
-        }
-    }
-} 
-
-
 IMPORTANT: Multiple map actions can be output.
 
 Supported action_types:
@@ -57,4 +10,5 @@ Supported action_types:
 - "add_polygon": Add a polygon defined by three or more points
 - "show_local_dataset": Display a complete local dataset (power_lines in PA)
 - "show_weather": Display weather forecast data (temperature, precipitation, wind_speed) for a specified area
-- "analyze_wind_risk": Analyze and display areas where power lines in PA may be at risk from high winds 
+- "analyze_wind_risk": Analyze and display areas where power lines in PA may be at risk from high winds
+- "unsafe_temperature": Show areas with unsafe low temperatures and affected oil wells in North Dakota 

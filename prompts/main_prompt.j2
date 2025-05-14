@@ -18,4 +18,8 @@
   {% include "weather_notes.txt" %}
 {% endif %}
 
+{% if include_temperature_risk_notes is not defined or include_temperature_risk_notes %}
+  {% include "temperature_risk_notes.txt" %}
+{% endif %}
+
 {% include "data_notes.txt" %} 
