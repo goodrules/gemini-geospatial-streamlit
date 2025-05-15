@@ -35,6 +35,9 @@ def init_session_state():
     # Removed 'selected_forecast_date_str' as it's no longer driven by UI
     if "selected_init_date" not in st.session_state:
         st.session_state.selected_init_date = date.today() # Default to today
+        # Log this initial setting for clarity
+        from utils.streamlit_utils import add_status_message
+        add_status_message(f"Using default forecast date: {date.today().strftime('%B %d, %Y')}", "info")
     if "weather_data_loaded" not in st.session_state:
         st.session_state.weather_data_loaded = False
     if "history" not in st.session_state:

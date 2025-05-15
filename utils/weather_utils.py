@@ -214,7 +214,12 @@ def prepare_display_values(weather_gdf, parameter):
     """
     if parameter == "temperature":
         # Convert from Kelvin to Celsius for display
-        weather_gdf.loc[:, 'display_value'] = weather_gdf['temperature'] - 273.15
+        if 'temperature' in weather_gdf.columns:
+            weather_gdf.loc[:, 'display_value'] = weather_gdf['temperature'] - 273.15
+        else:
+            # Log that temperature column is missing
+            st.warning("Temperature column not found in weather data")
+            weather_gdf.loc[:, 'display_value'] = 0
         unit = "°C"
     elif parameter == "precipitation":
         # Convert to mm

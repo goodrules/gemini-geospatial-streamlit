@@ -128,12 +128,12 @@ def get_weather_color_scale(parameter, min_val, max_val):
         LinearColormap: Color scale for the parameter.
     """
     if parameter == "temperature":
-        # Temperature color scale (Kelvin values)
+        # Temperature color scale (Celsius values)
         # Colors from cool blue to hot red
         return LinearColormap(
             ['#0000ff', '#00ffff', '#00ff00', '#ffff00', '#ff0000'],
-            vmin=min_val,  # ~15°F
-            vmax=max_val,  # ~55°F
+            vmin=min_val,  # Use dynamic min value
+            vmax=max_val,  # Use dynamic max value
         )
     elif parameter == "precipitation":
         # Precipitation color scale (mm)
@@ -203,26 +203,20 @@ def add_weather_layer_to_map(m, weather_gdf, parameter, min_val, max_val, unit, 
     # Define the style function for the GeoJSON
     def style_function(feature):
         """Style the GeoJSON features."""
-        value = feature['properties'].get(parameter, 0)
+        # Use the display_value which is already properly converted for temperature
+        if 'display_value' in feature['properties']:
+            value = feature['properties'].get('display_value', 0)
+        else:
+            # Fall back to the raw parameter value if display_value is not available
+            value = feature['properties'].get(parameter, 0)
+            
         try:
             value = float(value)
         except (ValueError, TypeError):
             value = 0
-            
-        # Get color based on value
-        if parameter == "temperature":
-            # Use color scale for temperature
-            color = colormap(value)
-        elif parameter == "precipitation":
-            # Use color scale for precipitation
-            value_mm = value * 1000  # Convert to millimeters
-            color = colormap(value_mm)
-        elif parameter == "wind_speed":
-            # Use color scale for wind speed
-            color = colormap(value)
-        else:
-            # Default color for unknown parameters
-            color = '#3388ff'
+        
+        # Get color based on value - always use colormap for consistent coloring
+        color = colormap(value)
             
         return {
             'fillColor': color,
@@ -235,18 +229,24 @@ def add_weather_layer_to_map(m, weather_gdf, parameter, min_val, max_val, unit, 
     layer_name = f"Weather: {parameter.replace('_', ' ').title()}{loc_suffix} {filter_message}"
     data_json = serialize_geojson(weather_gdf)
     
+    # Add display_value to properties for tooltip/popup
+    if 'display_value' in weather_gdf.columns:
+        for i, feature in enumerate(data_json['features']):
+            if i < len(weather_gdf):
+                feature['properties']['display_value'] = float(weather_gdf.iloc[i]['display_value'])
+    
     folium.GeoJson(
         data_json,
         name=layer_name,
         style_function=style_function,
         tooltip=folium.GeoJsonTooltip(
-            fields=['forecast_time'],
-            aliases=['Time'],
+            fields=['forecast_time', 'display_value'] if 'display_value' in weather_gdf.columns else ['forecast_time', parameter],
+            aliases=['Time', f"{parameter.replace('_', ' ').title()} ({unit})"],
             localize=True
         ),
         popup=folium.GeoJsonPopup(
-            fields=['forecast_time', parameter],
-            aliases=['Time', parameter.replace('_', ' ').title()],
+            fields=['forecast_time', 'display_value'] if 'display_value' in weather_gdf.columns else ['forecast_time', parameter],
+            aliases=['Time', f"{parameter.replace('_', ' ').title()} ({unit})"],
             localize=True
         )
     ).add_to(m)

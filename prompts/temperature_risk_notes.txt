@@ -1,0 +1,89 @@
+IMPORTANT: When users ask about unsafe temperatures, extreme cold, or oil wells affected by temperature in ANY US region,
+use the "unsafe_temperature" action type to visualize areas with dangerously low temperatures and affected oil wells.
+
+The action assesses areas where temperatures fall below a dangerous threshold (user-specified or default 20°F).
+In these extremely cold conditions, infrastructure operations can be affected or equipment can fail.
+
+IMPORTANT: Remember that weather data from the service is provided in Kelvin. The handler will automatically
+convert Kelvin to Fahrenheit for threshold comparisons and visualization.
+
+IMPORTANT: While the action was originally designed for North Dakota oil wells, the temperature visualization 
+works for ANY US state or county. Oil well data is currently only available for North Dakota, so the oil well 
+overlay will only display when "region" is set to "North Dakota".
+
+IMPORTANT: ALL parameters shown in the examples MUST be included in your responses, even if they match the defaults.
+
+The "unsafe_temperature" action supports the following parameters:
+- "region": Any US state or county to analyze (e.g., "Michigan", "Texas", "Los Angeles County, CA")
+- "min_temp_f": Minimum safe temperature in Fahrenheit (user can specify any threshold). Areas below this are highlighted
+- "forecast_timestamp": Specific timestamp for weather data in ISO format (e.g., "{{tomorrow_date}}T06:00:00Z")
+- "forecast_date": Date for weather data if no specific timestamp (format: "YYYY-MM-DD")
+- "show_oil_wells": Boolean to show oil wells overlay (only works when region is "North Dakota")
+
+IMPORTANT: Extract the user's preferred temperature threshold from their query if provided. For example:
+- "temperatures below 15 degrees" → min_temp_f: 15
+- "areas colder than 5°F" → min_temp_f: 5
+- "extreme cold below -10 degrees" → min_temp_f: -10
+
+IMPORTANT: Like other weather forecasts, this action is only available at specific times: 
+06:00 UTC, 12:00 UTC, and 18:00 UTC for each forecast day.
+
+The action provides the following insights:
+- Heat map visualization of areas with unsafe temperatures
+- Oil well locations overlaid on the temperature map (North Dakota only)
+- Wells in unsafe temperature zones are highlighted in red (North Dakota only)
+- Count of affected wells out of total wells is displayed (North Dakota only)
+
+Examples:
+
+For showing unsafe low temperatures in North Dakota with oil wells:
+{
+    "map_actions": [
+        {
+            "action_type": "unsafe_temperature",
+            "min_temp_f": 20,
+            "forecast_date": "{{today_date}}",  
+            "region": "North Dakota",
+            "show_oil_wells": true
+        }
+    ]
+}
+
+For showing extreme cold in another state (without oil wells):
+{
+    "map_actions": [
+        {
+            "action_type": "unsafe_temperature",
+            "min_temp_f": 10,
+            "forecast_date": "{{tomorrow_date}}",  
+            "region": "Minnesota",
+            "show_oil_wells": false
+        }
+    ]
+}
+
+For showing unsafe temperatures in a specific county:
+{
+    "map_actions": [
+        {
+            "action_type": "unsafe_temperature",
+            "min_temp_f": 15,
+            "forecast_date": "{{today_date}}",  
+            "region": "Cook County, IL",
+            "show_oil_wells": false
+        }
+    ]
+}
+
+For showing dangerously cold temperatures with a user-specified threshold:
+{
+    "map_actions": [
+        {
+            "action_type": "unsafe_temperature",
+            "min_temp_f": -5,
+            "forecast_date": "{{today_date}}",  
+            "region": "Alaska",
+            "show_oil_wells": false
+        }
+    ]
+}

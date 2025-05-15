@@ -1,5 +1,7 @@
 import streamlit as st
 from google.genai import types
+import re
+from datetime import datetime, date
 
 def create_tooltip_html(region, region_type):
     """Create HTML tooltip for map elements based on region type"""
@@ -186,3 +188,104 @@ def display_status_messages():
         
         # Clear after display
         clear_status_messages()
+
+def extract_date_from_prompt(prompt_text):
+    """
+    Extract a date from a user's prompt text, supporting various date formats.
+    
+    Args:
+        prompt_text (str): The text of the user's prompt
+        
+    Returns:
+        date: The extracted date or None if no valid date is found
+    """
+    if not prompt_text:
+        return None
+        
+    # Convert to lowercase for consistent pattern matching
+    text = prompt_text.lower()
+    
+    # Try to extract exact dates first (common formats)
+    
+    # Format: YYYY-MM-DD
+    iso_pattern = r'\b(\d{4}-\d{1,2}-\d{1,2})\b'
+    iso_matches = re.findall(iso_pattern, text)
+    for match in iso_matches:
+        try:
+            return datetime.strptime(match, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+            
+    # Format: MM/DD/YYYY or M/D/YYYY
+    slash_pattern = r'\b(\d{1,2}/\d{1,2}/\d{4})\b'
+    slash_matches = re.findall(slash_pattern, text)
+    for match in slash_matches:
+        try:
+            return datetime.strptime(match, '%m/%d/%Y').date()
+        except ValueError:
+            pass
+    
+    # Month mapping for text-based date parsing
+    month_mapping = {
+        'january': 1, 'jan': 1,
+        'february': 2, 'feb': 2,
+        'march': 3, 'mar': 3,
+        'april': 4, 'apr': 4,
+        'may': 5,
+        'june': 6, 'jun': 6,
+        'july': 7, 'jul': 7,
+        'august': 8, 'aug': 8,
+        'september': 9, 'sep': 9,
+        'october': 10, 'oct': 10,
+        'november': 11, 'nov': 11,
+        'december': 12, 'dec': 12
+    }
+    
+    # Look for dates with contextual phrases
+    context_patterns = [
+        # "starting on February 13, 2021" or variants
+        r'(?:starting|beginning|from|since|after|on)\s+(?:the\s+)?(?:date\s+)?(?:of\s+)?(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec)\s+(\d{1,2})(?:,?\s+|\s*,\s*)(\d{4})',
+        
+        # "from February 13, 2021" or variants
+        r'(?:from|since|after|as of)\s+(?:the\s+)?(?:date\s+)?(?:of\s+)?(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec)\s+(\d{1,2})(?:,?\s+|\s*,\s*)(\d{4})'
+    ]
+    
+    for pattern in context_patterns:
+        context_matches = re.findall(pattern, text)
+        for match in context_matches:
+            try:
+                month_str, day_str, year_str = match
+                month_num = month_mapping.get(month_str.lower())
+                if month_num:
+                    return date(int(year_str), month_num, int(day_str))
+            except (ValueError, KeyError):
+                pass
+
+    # Format: Month DD, YYYY (e.g., "January 15, 2024" or "Jan 15, 2024")
+    month_pattern = r'(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec)\s+(\d{1,2})(?:,?\s+|\s*,\s*)(\d{4})'
+    month_matches = re.findall(month_pattern, text)
+    
+    for match in month_matches:
+        try:
+            month_str, day_str, year_str = match
+            month_num = month_mapping.get(month_str.lower())
+            if month_num:
+                return date(int(year_str), month_num, int(day_str))
+        except (ValueError, KeyError):
+            pass
+            
+    # Format: DD Month YYYY (e.g., "15 January 2024" or "15 Jan 2024")
+    reverse_pattern = r'(\d{1,2})\s+(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec)(?:,?\s+|\s*,\s*)(\d{4})'
+    reverse_matches = re.findall(reverse_pattern, text)
+    
+    for match in reverse_matches:
+        try:
+            day_str, month_str, year_str = match
+            month_num = month_mapping.get(month_str.lower())
+            if month_num:
+                return date(int(year_str), month_num, int(day_str))
+        except (ValueError, KeyError):
+            pass
+    
+    # If no specific date found, return None
+    return None

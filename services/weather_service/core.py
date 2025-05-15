@@ -64,12 +64,17 @@ def handle_show_weather(action, m):
         # If the date is older than init_date, use the init_date instead
         # (can't forecast before the init date)
         from datetime import datetime
-        selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
-        init_date = datetime.strptime(current_init_date_str, '%Y-%m-%d').date()
-        
-        if selected_date < init_date:
+        try:
+            selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
+            init_date = datetime.strptime(current_init_date_str, '%Y-%m-%d').date()
+            
+            if selected_date < init_date:
+                selected_date_str = current_init_date_str
+                add_status_message(f"Updated forecast date to match current initialization date: {current_init_date_str}", "info")
+        except ValueError:
+            # Handle invalid date formats
             selected_date_str = current_init_date_str
-            st.info(f"Updated forecast date to match current initialization date: {current_init_date_str}")
+            add_status_message(f"Invalid date format, using initialization date: {current_init_date_str}", "warning")
     
     # Debug: Show what parameters were passed
     # st.write(f"DEBUG Weather Action - parameter: {parameter}, timestamp: {selected_timestamp_str}, date: {selected_date_str}, location: {location}")
@@ -78,12 +83,13 @@ def handle_show_weather(action, m):
         # 1. Get weather forecast data
         weather_df_all = fetch_weather_data()
         if weather_df_all is None or weather_df_all.empty:
+            add_status_message("No weather data available", "error")
             return bounds
 
         # 2. Process timestamps
         weather_df_all = preprocess_weather_timestamps(weather_df_all)
         if weather_df_all is None or weather_df_all.empty:
-            st.warning("No valid weather timestamps found after processing.")
+            add_status_message("No valid weather timestamps found after processing", "warning")
             return bounds
 
         # 3. Filter by timestamp or date
@@ -95,20 +101,33 @@ def handle_show_weather(action, m):
         # st.write(f"DEBUG: Filter message: {filter_message}")
         
         if weather_df.empty:
-            st.warning(f"No weather data available for selected time filter: {filter_message}")
+            add_status_message(f"No weather data available for selected time filter: {filter_message}", "warning")
             return bounds
             
         # 5. Create GeoDataFrame from the weather data
         weather_gdf = create_weather_geodataframe(weather_df)
         if weather_gdf is None or weather_gdf.empty:
-            st.warning("Failed to convert weather data to GeoDataFrame.")
+            add_status_message("Failed to convert weather data to GeoDataFrame", "warning")
             return bounds
             
         # 4. Prepare values for display (min, max, units)
         weather_gdf, unit = prepare_display_values(weather_gdf, parameter)
+        
         # Calculate min and max for display scaling
-        min_val = weather_gdf['display_value'].min() if not weather_gdf.empty else 0
-        max_val = weather_gdf['display_value'].max() if not weather_gdf.empty else 100
+        # Use a more robust method to get min/max values
+        if 'display_value' in weather_gdf.columns and not weather_gdf.empty:
+            min_val = weather_gdf['display_value'].min()
+            max_val = weather_gdf['display_value'].max()
+            
+            # Add a small buffer to min/max to ensure a proper range
+            if min_val == max_val:
+                min_val = min_val - 1
+                max_val = max_val + 1
+        else:
+            # Fallback values
+            min_val = 0
+            max_val = 100
+            add_status_message("Using default min/max values for color scale", "warning")
 
         # 6. Filter by location (if specified)
         if location:
@@ -120,7 +139,7 @@ def handle_show_weather(action, m):
                 bounds.append([[loc_bounds[1], loc_bounds[0]], [loc_bounds[3], loc_bounds[2]]])
             
             if weather_gdf.empty:
-                st.warning(f"No weather data found for location: {location}")
+                add_status_message(f"No weather data found for location: {location}", "warning")
                 return bounds
 
         # 7. Add the weather layer to the map
@@ -132,7 +151,7 @@ def handle_show_weather(action, m):
             bounds.append(layer_bounds)
             
     except Exception as e:
-        st.error(f"Error processing weather data: {str(e)}")
+        add_status_message(f"Error processing weather data: {str(e)}", "error")
         import traceback
         traceback.print_exc()
     

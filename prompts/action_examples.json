@@ -87,5 +87,12 @@
     "forecast_timestamp": "2022-12-18T12:00:00Z",
     "forecast_date": "2022-12-18",
     "location": "Philadelphia"
+  },
+  {
+    "action_type": "unsafe_temperature",
+    "min_temp_f": -10,
+    "forecast_date": "2022-12-18",
+    "region": "North Dakota",
+    "show_oil_wells": true
   }
 ]
