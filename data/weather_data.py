@@ -121,7 +121,7 @@ def get_sample_weather_data():
         # Path to sample data file
         sample_file = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "data", "data_samples", "weather", "weather_data_example.csv"
+            "data", "local", "weather_data_example.csv"
         )
         
         # Load the sample data
