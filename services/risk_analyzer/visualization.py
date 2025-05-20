@@ -11,6 +11,7 @@ import folium
 from branca.colormap import LinearColormap
 from branca.element import MacroElement
 from jinja2 import Template
+import geopandas as gpd
 
 from services.weather_service import get_weather_color_scale
 from utils.streamlit_utils import add_status_message

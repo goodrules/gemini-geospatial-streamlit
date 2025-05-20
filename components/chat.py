@@ -30,20 +30,69 @@ def display_structured_data(data):
     if not data:
         return
         
-    st.subheader("Data")
+    # Display action summaries from the response
+    if "action_summary" in data:
+        with st.expander("📊 Analysis Details", expanded=True):
+            for action in data["action_summary"]:
+                action_type = action.get("action")
+                
+                if action_type == "Wind Risk Analysis":
+                    # Create a formatted display for wind risk analysis
+                    st.markdown(f"#### {action_type}: {action.get('region')}")
+                    
+                    # Create two columns for the details
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown(f"**Forecast Days:** {action.get('forecast_days')}")
+                        st.markdown(f"**High Risk Threshold:** {action.get('high_threshold')} m/s")
+                    with col2:
+                        st.markdown(f"**Moderate Risk Threshold:** {action.get('moderate_threshold')} m/s")
+                        st.markdown(f"**Power Line Analysis:** {action.get('power_line_analysis')}")
+                    
+                    # Display power line guidance if applicable
+                    if action.get('power_line_analysis') == "Yes" and action.get('region') != "Pennsylvania":
+                        st.info("📌 Note: Detailed power line data is currently only available for Pennsylvania. For other regions, general estimates are shown.")
+                
+                elif action_type == "Power Line Data Display":
+                    st.markdown(f"#### {action_type}: {action.get('region')}")
+                    st.markdown("""
+                    **Legend Information:**
+                    - Yellow: < 100 kV (Low Voltage)
+                    - Orange: 100-300 kV (Medium Voltage)
+                    - Red: 300-500 kV (High Voltage)
+                    - Dark Red: > 500 kV (Very High Voltage)
+                    """)
+                
+                elif action_type == "Weather Data Display":
+                    st.markdown(f"#### {action_type}: {action.get('region')}")
+                    st.markdown(f"""
+                    **Metric:** {action.get('metric').capitalize()}
+                    **Forecast Day:** {action.get('forecast_day')}
+                    """)
     
-    # Handle different types of data
+    # Display risk analysis results if available
+    if "status_info" in data:
+        with st.expander("🔍 Risk Analysis Results", expanded=True):
+            for message in data["status_info"]:
+                if "high risk" in message.lower():
+                    st.warning(message)
+                elif "moderate risk" in message.lower():
+                    st.info(message)
+                else:
+                    st.success(message)
+    
+    # Original data sections
     if "region_info" in data:
-        st.write("### Region Information")
-        st.json(data["region_info"])
+        with st.expander("Region Information", expanded=False):
+            st.json(data["region_info"])
         
     if "comparison" in data:
-        st.write("### Region Comparison")
-        st.dataframe(pd.DataFrame(data["comparison"]))
+        with st.expander("Region Comparison", expanded=False):
+            st.dataframe(pd.DataFrame(data["comparison"]))
         
     if "statistics" in data:
-        st.write("### Statistics")
-        st.json(data["statistics"])
+        with st.expander("Statistics", expanded=False):
+            st.json(data["statistics"])
 
 def handle_chat_input():
     """Handle user chat input and generate AI responses"""
