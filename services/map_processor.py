@@ -31,18 +31,51 @@ from action_handlers import (
     handle_unsafe_temperature
 )
 
-def process_map_actions(actions, m):
-    """Process map actions from AI responses and apply them to the map"""
-    if not actions or not isinstance(actions, list):
-        return m
+import hashlib
+import json
+
+def get_actions_hash(actions):
+    """
+    Generate a hash of map actions for caching purposes
     
-    # Create a handler registry - allowing for runtime extension (Open/Closed)
+    Args:
+        actions: List of action dictionaries
+        
+    Returns:
+        str: A hash string representing the actions
+    """
+    if not actions:
+        return "empty_actions"
+    
+    try:
+        # Convert to stable JSON string and hash
+        actions_json = json.dumps(actions, sort_keys=True)
+        return hashlib.md5(actions_json.encode()).hexdigest()
+    except Exception as e:
+        logger.error(f"Error hashing actions: {e}")
+        # Return a timestamp-based fallback if we can't hash properly
+        import time
+        return f"fallback_{int(time.time())}"
+
+def process_actions_for_bounds(actions):
+    """
+    Process map actions to collect bounds (no caching)
+    
+    IMPORTANT: Removed caching to prevent widget warning - widgets should never be in cached functions
+    
+    Args:
+        actions: List of action dictionaries
+        
+    Returns:
+        list: List of bounds to fit the map to
+    """
+    # Create handler registry
     action_handlers = get_action_handlers()
     
-    # Track all bounds to calculate overall view at the end
+    # Track all bounds
     all_bounds = []
     
-    # Process each action independently
+    # Process each action and collect bounds only
     for action in actions:
         if not isinstance(action, dict):
             continue
@@ -50,16 +83,59 @@ def process_map_actions(actions, m):
         action_type = action.get("action_type")
         logger.info(f"Processing action type: {action_type}")
         if action_type in action_handlers:
-            # Call the appropriate handler and collect bounds
             try:
+                # We need to create a temporary map for each handler
+                # since we're only collecting bounds at this stage
+                temp_map = initialize_map()
+                bounds = action_handlers[action_type](action, temp_map)
+                if bounds:
+                    all_bounds.extend(bounds)
+            except Exception as e:
+                add_status_message(f"Error processing {action_type} action: {str(e)}", "error")
+    
+    return all_bounds
+
+def process_map_actions(actions, m):
+    """
+    Process map actions from AI responses and apply them to the map
+    
+    This simplified version:
+    1. Directly applies actions to the map
+    2. Avoids any caching to prevent Streamlit widget warnings
+    3. Supports all types of UI components in action handlers
+    
+    Args:
+        actions: List of action dictionaries
+        m: The folium map object to modify
+        
+    Returns:
+        folium.Map: The modified map
+    """
+    if not actions or not isinstance(actions, list):
+        return m
+    
+    # Get action handlers
+    action_handlers = get_action_handlers()
+    
+    # Track all bounds
+    all_bounds = []
+    
+    # Process each action and apply it to the map
+    for action in actions:
+        if not isinstance(action, dict):
+            continue
+            
+        action_type = action.get("action_type")
+        if action_type in action_handlers:
+            try:
+                # Process the action and collect bounds
                 bounds = action_handlers[action_type](action, m)
                 if bounds:
                     all_bounds.extend(bounds)
             except Exception as e:
-                # Consistent error handling
-                add_status_message(f"Error processing {action_type} action: {str(e)}", "error")
+                add_status_message(f"Error applying {action_type} action to map: {str(e)}", "error")
     
-    # Fit the map to show all features (Single Responsibility)
+    # Fit the map to the collected bounds
     if all_bounds:
         fit_map_to_bounds(m, all_bounds)
     

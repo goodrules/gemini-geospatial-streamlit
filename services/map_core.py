@@ -3,9 +3,23 @@ import pandas as pd
 import json
 import streamlit as st
 
-def initialize_map():
-    """Initialize a base Folium map centered on the United States"""
-    m = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="OpenStreetMap")
+def initialize_map(center=[39.8283, -98.5795], zoom=4, tile="OpenStreetMap"):
+    """
+    Initialize a base Folium map
+    
+    We're explicitly NOT caching this function to ensure a fresh map is created 
+    on each prompt, preventing any stale data from being displayed.
+    
+    Args:
+        center: Center coordinates [lat, lon] for the map
+        zoom: Initial zoom level
+        tile: Base tile layer
+        
+    Returns:
+        folium.Map: Initialized map object
+    """
+    print(f"Creating new base map")
+    m = folium.Map(location=center, zoom_start=zoom, tiles=tile)
     return m
 
 def serialize_geojson(gdf):

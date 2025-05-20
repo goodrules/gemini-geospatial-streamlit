@@ -17,35 +17,46 @@ def handle_show_weather(action, m):
     Returns:
         The Folium map bounds with weather visualization added
     """
-    weather_query = {
-        "parameter": action.get("parameter", "temperature"),
-        "forecast_timestamp": action.get("forecast_timestamp", ""),
-        "forecast_date": action.get("forecast_date", ""),
-        "location": action.get("location", "")
-    }
+    # Use a session key to track if we've already shown the UI for this action
+    # to prevent duplication
+    action_id = str(action.get("id", "default"))
+    ui_key = f"weather_ui_shown_{action_id}"
     
-    # Create a code block with the weather query information
-    st.markdown("### Weather Query Details")
-    st.code(
-        f"""Parameter: {weather_query['parameter']}
+    # Only show the UI elements if we haven't already for this action
+    if ui_key not in st.session_state:
+        st.session_state[ui_key] = True
+        
+        weather_query = {
+            "parameter": action.get("parameter", "temperature"),
+            "forecast_timestamp": action.get("forecast_timestamp", ""),
+            "forecast_date": action.get("forecast_date", ""),
+            "location": action.get("location", "")
+        }
+        
+        # Create a code block with the weather query information
+        with st.container():
+            st.markdown("### Weather Query Details")
+            st.code(
+                f"""Parameter: {weather_query['parameter']}
 Timestamp: {weather_query['forecast_timestamp']}
 Date: {weather_query['forecast_date']}
 Location: {weather_query['location']}""", 
-        language="text"
-    )
-    
-    # Display the SQL query if available
-    init_date = st.session_state.get("selected_init_date", "")
-    if init_date:
-        init_date_str = init_date.strftime('%Y-%m-%d') if hasattr(init_date, 'strftime') else str(init_date)
+                language="text"
+            )
         
-        # Display the SQL query that was executed
-        st.markdown("### SQL Query")
-        # Use the stored query if available, otherwise construct a template
-        if "last_weather_query" in st.session_state:
-            sql_query = st.session_state.last_weather_query
-        else:
-            sql_query = f"""
+        # Display the SQL query if available
+        init_date = st.session_state.get("selected_init_date", "")
+        if init_date:
+            init_date_str = init_date.strftime('%Y-%m-%d') if hasattr(init_date, 'strftime') else str(init_date)
+            
+            # Display the SQL query that was executed
+            with st.container():
+                st.markdown("### SQL Query")
+                # Use the stored query if available, otherwise construct a template
+                if "last_weather_query" in st.session_state:
+                    sql_query = st.session_state.last_weather_query
+                else:
+                    sql_query = f"""
 WITH us_geom_lookup AS (
 SELECT
     us_outline_geom
@@ -70,7 +81,7 @@ JOIN
 WHERE
     weather.init_time = TIMESTAMP("{init_date_str}")
 """
-        st.code(sql_query, language="sql")
+                st.code(sql_query, language="sql")
     
     # Delegate to the actual implementation in weather_service.py
     return weather_service_handler(action, m) 
