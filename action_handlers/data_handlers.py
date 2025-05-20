@@ -194,8 +194,8 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
             else:
                 line_color = '#8B0000'  # DarkRed for very high voltage
             
-            # Use custom color or fall back to action-specified color
-            display_color = action.get("color", line_color)
+            # Always use voltage-based colors for power lines
+            display_color = line_color
             
             # Create a circle with voltage-based colors
             folium.Circle(
@@ -212,27 +212,9 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
         # Add the feature group to the map
         dot_group.add_to(m)
         
-        # Add legend for voltage colors
-        legend_html = '''
-        <div style="position: fixed; 
-                    bottom: 50px; right: 50px; 
-                    border: 2px solid grey; 
-                    z-index: 9999; 
-                    background-color: white;
-                    padding: 10px;
-                    opacity: 0.8;
-                    border-radius: 5px;
-                    ">
-          <p style="margin: 0; padding-bottom: 5px;"><b>Power Line Voltage</b></p>
-          <p style="margin: 0">
-            <i class="fa fa-circle" style="color:#FFD700;"></i> < 100 kV<br>
-            <i class="fa fa-circle" style="color:#FFA500;"></i> 100-300 kV<br>
-            <i class="fa fa-circle" style="color:#FF0000;"></i> 300-500 kV<br>
-            <i class="fa fa-circle" style="color:#8B0000;"></i> 500+ kV
-          </p>
-        </div>
-        '''
-        m.get_root().html.add_child(folium.Element(legend_html))
+        # Use consistent voltage legend implementation from visualization.py
+        from services.risk_analyzer.visualization import create_voltage_legend
+        create_voltage_legend(m)
     else:
         # For line data, use regular GeoJSON style
         geo_layer = folium.GeoJson(

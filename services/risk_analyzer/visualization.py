@@ -420,6 +420,15 @@ def create_voltage_legend(m):
     Returns:
         folium.Map: Map with legend added.
     """
+    # Check if the legend already exists to avoid duplication
+    legend_id = "power_line_voltage_legend"
+    
+    # Check if legend already exists in map children
+    for child in m.get_root()._children.values():
+        if isinstance(child, MacroElement) and hasattr(child, '_id') and child._id == legend_id:
+            # Legend already exists, no need to add it again
+            return m
+            
     legend_html = """
     {% macro html(this, kwargs) %}
     <div style="
@@ -461,6 +470,7 @@ def create_voltage_legend(m):
     
     legend = MacroElement()
     legend._template = Template(legend_html)
+    legend._id = legend_id  # Add ID for tracking
     
     m.get_root().add_child(legend)
     
