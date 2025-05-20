@@ -10,5 +10,5 @@ Supported action_types:
 - "add_polygon": Add a polygon defined by three or more points
 - "show_local_dataset": Display a complete local dataset (power_lines in PA)
 - "show_weather": Display weather forecast data (temperature, precipitation, wind_speed) for a specified area
-- "analyze_wind_risk": Analyze and display areas where power lines in PA may be at risk from high winds
+- "analyze_wind_risk": Analyze and display areas where power lines in the United States may be at risk from high winds
 - "unsafe_temperature": Show areas with unsafe low temperatures and affected oil wells in North Dakota 

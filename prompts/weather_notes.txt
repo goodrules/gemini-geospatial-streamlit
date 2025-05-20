@@ -83,7 +83,7 @@ For a specific time tomorrow (mapping "evening" to 18:00):
     ]
 }
 
-For location-specific weather queries within Pennsylvania (using local data context, defaulting to max for the day):
+For location-specific weather queries within the United States.  Example with Pennsylvania (using local data context, defaulting to max for the day):
 {
     "response": "Here is the wind speed forecast for Crawford County, Pennsylvania for today. The map shows the maximum wind speed forecast for each area today.",
     "map_actions": [
