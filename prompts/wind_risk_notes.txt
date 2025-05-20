@@ -7,13 +7,13 @@ This action analyzes risk at specific forecast timestamps (06:00, 12:00, 18:00 U
 IMPORTANT NOTE: Power line data is ONLY available for Pennsylvania. Even if the user asks about power line risk in
 other states, setting analyze_power_lines=true will only show power lines for Pennsylvania regions.
 
-Example for power line wind risk in Pennsylvania:
+Example for power line wind risk in Illinois:
 {
-    "response": "I've analyzed wind risk to power lines in Pennsylvania for the next 5 days. The map shows timestamps where high or moderate wind speeds intersect power line buffers.",
+    "response": "I've analyzed wind risk to power lines in Illinois for the next 5 days. The map shows timestamps where high or moderate wind speeds intersect power line buffers.",
     "map_actions": [
         {
             "action_type": "analyze_wind_risk",
-            "region": "Pennsylvania",        # Required: The region to analyze (state, county, etc.)
+            "region": "Illinois",        # Required: The region to analyze (state, county, etc.)
             "forecast_days": 5,             # Number of days to analyze from the selected init_date
             "high_threshold": 16.0,         # Optional: Wind speed (m/s) threshold for high risk (default: 16)
             "moderate_threshold": 13.0,     # Optional: Wind speed (m/s) threshold for moderate risk (default: 13)
@@ -38,6 +38,6 @@ Example for general wind risk (without power lines) in any region:
 }
 
 IMPORTANT: When analyzing wind risk for power lines, you MUST specify a region parameter that defines the geographic 
-area to analyze. This could be a state name like "Pennsylvania" or a county name with state like "Crawford County, PA". 
+area to analyze. This could be a state name like "Illinois" or a county name with state like "Crawford County, PA". 
 For counties, always include the state to avoid ambiguity with duplicate county names. The region parameter is 
 REQUIRED to prevent performance issues with large datasets. 

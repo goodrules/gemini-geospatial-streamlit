@@ -36,17 +36,24 @@ A powerful interactive application that combines Google's Gemini AI with geospat
 
 3. **Set up environment variables**
    
-   Create a `.env` file in the project root with the following variable:
+   Create a `.env` file in the project root with the following variables:
    ```
    PROJECT_ID=your_google_cloud_project_id
+   GCS_BUCKET_NAME=your_gcs_bucket_name
    ```
 
-4. **Run the application**
+4. **Download supplementary shapefiles**
+   ```bash
+   python download_gcs_data.py
+   ```
+   This will download required shapefiles and other geospatial data from the specified GCS bucket to the `data/local` directory.
+
+5. **Run the application**
    ```bash
    streamlit run app.py
    ```
 
-5. **Access the web interface**
+6. **Access the web interface**
    
    Open your browser and navigate to http://localhost:8501
 
@@ -109,6 +116,7 @@ The application uses several data sources:
 - US geographic boundaries (states, counties)
 - Power infrastructure data for Pennsylvania
 - Custom local datasets (as configured)
+- Supplementary shapefiles stored in a GCS bucket specified by the `GCS_BUCKET_NAME` environment variable
 
 ## 🤝 Contributing
 
