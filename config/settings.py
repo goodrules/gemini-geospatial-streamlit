@@ -8,7 +8,7 @@ from datetime import date # Import date for default init_date
 load_dotenv()
 PROJECT_ID = os.environ.get("PROJECT_ID")
 REGION = os.environ.get("REGION", "us-central1")
-GEMINI_MODEL = "gemini-2.5-flash-preview-04-17"
+GEMINI_MODEL = "gemini-2.5-flash-preview-05-20"
 
 def setup_page_config():
     """Configure Streamlit page settings"""
