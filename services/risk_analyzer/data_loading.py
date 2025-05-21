@@ -27,8 +27,8 @@ def extract_risk_analysis_params(action):
     Returns:
         dict: Dictionary of validated parameters or {"valid": False}.
     """
-    high_threshold = action.get("high_threshold", 16.0)
-    moderate_threshold = action.get("moderate_threshold", 13.0)
+    high_threshold = action.get("high_threshold", 15.0)
+    moderate_threshold = action.get("moderate_threshold", 9.0)
     forecast_days = action.get("forecast_days", 3)
     analyze_power_lines = action.get("analyze_power_lines", False)
     

@@ -4,8 +4,7 @@ If the user is only asking about general wind risk without mentioning power line
 
 This action analyzes risk at specific forecast timestamps (06:00, 12:00, 18:00 UTC) within the specified number of days.
 
-IMPORTANT NOTE: Power line data is ONLY available for Pennsylvania. Even if the user asks about power line risk in
-other states, setting analyze_power_lines=true will only show power lines for Pennsylvania regions.
+IMPORTANT NOTE: Power line data is available for the entire United States. You can analyze power line risk in any US state or county.
 
 Example for power line wind risk in Illinois:
 {
@@ -15,8 +14,8 @@ Example for power line wind risk in Illinois:
             "action_type": "analyze_wind_risk",
             "region": "Illinois",        # Required: The region to analyze (state, county, etc.)
             "forecast_days": 5,             # Number of days to analyze from the selected init_date
-            "high_threshold": 16.0,         # Optional: Wind speed (m/s) threshold for high risk (default: 16)
-            "moderate_threshold": 13.0,     # Optional: Wind speed (m/s) threshold for moderate risk (default: 13)
+            "high_threshold": 15.0,         # Optional: Wind speed (m/s) threshold for high risk (default: 15)
+            "moderate_threshold": 9.0,     # Optional: Wind speed (m/s) threshold for moderate risk (default: 9)
             "analyze_power_lines": true     # Set to true ONLY when query SPECIFICALLY asks about power line risk
         }
     ]
@@ -30,8 +29,8 @@ Example for general wind risk (without power lines) in any region:
             "action_type": "analyze_wind_risk",
             "region": "California",         # Required: The region to analyze (state, county, etc.)
             "forecast_days": 3,             # Number of days to analyze from the selected init_date
-            "high_threshold": 16.0,         # Optional: Wind speed (m/s) threshold for high risk (default: 16) 
-            "moderate_threshold": 13.0,     # Optional: Wind speed (m/s) threshold for moderate risk (default: 13)
+            "high_threshold": 15.0,         # Optional: Wind speed (m/s) threshold for high risk (default: 15) 
+            "moderate_threshold": 9.0,     # Optional: Wind speed (m/s) threshold for moderate risk (default: 9)
             "analyze_power_lines": false    # Set to false for general wind risk without power line analysis
         }
     ]

@@ -49,9 +49,7 @@ def display_structured_data(data):
                         st.markdown(f"**Moderate Risk Threshold:** {action.get('moderate_threshold')} m/s")
                         st.markdown(f"**Power Line Analysis:** {action.get('power_line_analysis')}")
                     
-                    # Display power line guidance if applicable
-                    if action.get('power_line_analysis') == "Yes" and action.get('region') != "Pennsylvania":
-                        st.info("📌 Note: Detailed power line data is currently only available for Pennsylvania. For other regions, general estimates are shown.")
+                    # Power line guidance not needed as data is available for all US regions
                 
                 elif action_type == "Power Line Data Display":
                     st.markdown(f"#### {action_type}: {action.get('region')}")

@@ -159,8 +159,8 @@ def get_gemini_response(prompt, history):
                         "action": "Wind Risk Analysis",
                         "region": action.get("region", "Unknown"),
                         "forecast_days": action.get("forecast_days", 3),
-                        "high_threshold": action.get("high_threshold", 16.0),
-                        "moderate_threshold": action.get("moderate_threshold", 13.0),
+                        "high_threshold": action.get("high_threshold", 15.0),
+                        "moderate_threshold": action.get("moderate_threshold", 9.0),
                         "power_line_analysis": "Yes" if action.get("analyze_power_lines", False) else "No"
                     }
                     action_summaries.append(risk_info)
