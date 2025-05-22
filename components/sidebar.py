@@ -131,7 +131,7 @@ def render_example_questions():
     st.header("Example Questions")
     
     weather_examples = [
-        "Are any power lines at risk of high wind speed in the next 10 days in Erie County, PA starting on December 20, 2022?",
+        "Are any power lines at risk of high wind speed in the next 10 days Chicago, IL starting on December 20, 2022?",
         "Show me temperature risks to oil wells in North Dakota starting on February 13, 2021 where temperatures are lower than -15˚F",
         "Show the temperature forecast for California",
         "What is the wind speed forecast for Chicago?",
