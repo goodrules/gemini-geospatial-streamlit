@@ -83,8 +83,7 @@ def get_weather_forecast_data(init_date):
         init_date (datetime.date or str): The initialization date for the forecast.
                                           If str, expected format 'YYYY-MM-DD'.
     
-    This data covers Pennsylvania (PA) only - so it will only work for 
-    PA regions and will show "No data" for other states.
+    This data covers the entire United States and works for all US regions.
     
     Note: init_time represents the initialization time of the forecast run.
     forecast_time represents the specific timestamp for which the forecast applies (UTC).

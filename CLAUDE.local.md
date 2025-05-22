@@ -1,2 +1,0 @@
-- local/logs contains logs for interations with the app including errors, so refer here for extra information
-- gemini-geospatial-streamlit/data/local/weather_data_example.csv contains BigQuery data schema and data sample for weather data

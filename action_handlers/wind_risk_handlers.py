@@ -20,8 +20,8 @@ def handle_analyze_wind_risk(action, m):
     risk_query = {
         "region": action.get("region", ""),
         "forecast_days": action.get("forecast_days", 3),
-        "high_threshold": action.get("high_threshold", 16.0),
-        "moderate_threshold": action.get("moderate_threshold", 13.0),
+        "high_threshold": action.get("high_threshold", 15.0),
+        "moderate_threshold": action.get("moderate_threshold", 9.0),
         "analyze_power_lines": action.get("analyze_power_lines", False)
     }
     

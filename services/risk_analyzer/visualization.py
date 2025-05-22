@@ -11,6 +11,7 @@ import folium
 from branca.colormap import LinearColormap
 from branca.element import MacroElement
 from jinja2 import Template
+import geopandas as gpd
 
 from services.weather_service import get_weather_color_scale
 from utils.streamlit_utils import add_status_message
@@ -420,6 +421,15 @@ def create_voltage_legend(m):
     Returns:
         folium.Map: Map with legend added.
     """
+    # Check if the legend already exists to avoid duplication
+    legend_id = "power_line_voltage_legend"
+    
+    # Check if legend already exists in map children
+    for child in m.get_root()._children.values():
+        if isinstance(child, MacroElement) and hasattr(child, '_id') and child._id == legend_id:
+            # Legend already exists, no need to add it again
+            return m
+            
     legend_html = """
     {% macro html(this, kwargs) %}
     <div style="
@@ -461,6 +471,7 @@ def create_voltage_legend(m):
     
     legend = MacroElement()
     legend._template = Template(legend_html)
+    legend._id = legend_id  # Add ID for tracking
     
     m.get_root().add_child(legend)
     
@@ -602,6 +613,177 @@ def display_event_details(selected_event_id, events, is_pl_impact):
     st.markdown(details_md)
 
 
+def add_risk_layer_for_event(event_id, event_data, risk_events, is_pl_impact, m, bounds, power_lines_gdf=None):
+    """
+    Add risk layers for a specific event to the map, under an event-specific feature group
+    
+    Args:
+        event_id: ID of the event
+        event_data: Dictionary with event summary data
+        risk_events: Dictionary mapping event IDs to GeoDataFrames
+        is_pl_impact: Boolean indicating if this is a power line impact analysis
+        m: Folium map object
+        bounds: List to append map bounds to
+        power_lines_gdf: Optional GeoDataFrame with power line geometries
+    """
+    # Get risk areas for this event
+    high_risk_df, moderate_risk_df = get_risk_areas_for_display(event_id, risk_events)
+    
+    # Create a parent feature group for this timestamp's layers
+    # This allows showing/hiding all layers for a timestamp at once
+    event_display_name = event_data['timestamp']
+    feature_group = folium.FeatureGroup(name=f"Risk Areas: {event_display_name}")
+    
+    # Risk colormaps for this layer
+    risk_colormaps = prepare_risk_colormaps(is_pl_impact)
+    
+    # Add high risk areas
+    if not high_risk_df.empty:
+        high_risk_name = f"High Risk Areas - {event_display_name}"
+        high_risk_group = folium.FeatureGroup(name=high_risk_name)
+        
+        try:
+            # Calculate bounds BEFORE converting to JSON
+            b = high_risk_df.total_bounds
+            bounds.append([[float(b[1]), float(b[0])], [float(b[3]), float(b[2])]])
+            
+            # Convert to GeoJSON
+            high_risk_geojson = json.loads(high_risk_df.to_json())
+            
+            # Add high risk GeoJSON
+            folium.GeoJson(
+                high_risk_geojson,
+                style_function=lambda feature: {
+                    'fillColor': '#ff0000', 
+                    'color': '#800000',
+                    'weight': 2,
+                    'opacity': 1,
+                    'fillOpacity': 0.7
+                },
+                tooltip=folium.GeoJsonTooltip(
+                    fields=['forecast_time_str', 'wind_speed', 'risk_score'],
+                    aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score (%)'],
+                    localize=False, sticky=True
+                )
+            ).add_to(high_risk_group)
+            
+            # Add to parent feature group
+            high_risk_group.add_to(feature_group)
+        except Exception as e:
+            add_status_message(f"Error adding high risk areas for {event_display_name}: {str(e)}", "error")
+    
+    # Add moderate risk areas
+    if not moderate_risk_df.empty:
+        moderate_risk_name = f"Moderate Risk Areas - {event_display_name}"
+        moderate_risk_group = folium.FeatureGroup(name=moderate_risk_name)
+        
+        try:
+            # Calculate bounds BEFORE converting to JSON
+            b = moderate_risk_df.total_bounds
+            bounds.append([[float(b[1]), float(b[0])], [float(b[3]), float(b[2])]])
+            
+            # Convert to GeoJSON
+            moderate_risk_geojson = json.loads(moderate_risk_df.to_json())
+            
+            # Add moderate risk GeoJSON
+            folium.GeoJson(
+                moderate_risk_geojson,
+                style_function=lambda feature: {
+                    'fillColor': '#ffaa00', 
+                    'color': '#996600',
+                    'weight': 2,
+                    'opacity': 1,
+                    'fillOpacity': 0.6
+                },
+                tooltip=folium.GeoJsonTooltip(
+                    fields=['forecast_time_str', 'wind_speed', 'risk_score'],
+                    aliases=['Time (UTC)', 'Wind Speed (m/s)', 'Risk Score (%)'],
+                    localize=False, sticky=True
+                )
+            ).add_to(moderate_risk_group)
+            
+            # Add to parent feature group
+            moderate_risk_group.add_to(feature_group)
+        except Exception as e:
+            add_status_message(f"Error adding moderate risk areas for {event_display_name}: {str(e)}", "error")
+    
+    # Add power lines if provided
+    if power_lines_gdf is not None and not power_lines_gdf.empty:
+        power_line_group = folium.FeatureGroup(name=f"Power Lines - {event_display_name}")
+        
+        try:
+            # Get risk geometry
+            risk_geometry = None
+            if event_id == "all_timestamps":
+                if high_risk_df is not None and not high_risk_df.empty:
+                    risk_geometry = high_risk_df.geometry.unary_union
+                if moderate_risk_df is not None and not moderate_risk_df.empty:
+                    if risk_geometry is not None:
+                        risk_geometry = risk_geometry.union(moderate_risk_df.geometry.unary_union)
+                    else:
+                        risk_geometry = moderate_risk_df.geometry.unary_union
+            else:
+                # Get geometry for specific event
+                event_gdf = risk_events.get(event_id)
+                if event_gdf is not None and not event_gdf.empty:
+                    risk_geometry = event_gdf.geometry.unary_union
+            
+            # Filter power lines
+            if risk_geometry is not None:
+                filtered_power_lines = power_lines_gdf[power_lines_gdf.intersects(risk_geometry)].copy()
+            else:
+                filtered_power_lines = power_lines_gdf.copy()
+            
+            if not filtered_power_lines.empty:
+                # Add power line points
+                for idx, row in filtered_power_lines.iterrows():
+                    coords = (row.geometry.y, row.geometry.x)
+                    
+                    # Create tooltip
+                    point_tooltip = f"""
+                    <div style='min-width: 200px;'>
+                        <b>Voltage:</b> {row.get('VOLTAGE', 'N/A')} kV<br>
+                        <b>Type:</b> {row.get('TYPE', 'N/A')}<br>
+                        <b>Owner:</b> {row.get('OWNER', 'N/A')}<br>
+                        <b>Description:</b> {row.get('NAICS_DESC', 'N/A')}
+                    </div>
+                    """
+                    
+                    # Determine color based on voltage
+                    voltage = row.get('VOLTAGE', 0)
+                    
+                    if voltage < 100:
+                        line_color = '#FFD700'  # Yellow for low voltage
+                    elif voltage < 300:
+                        line_color = '#FFA500'  # Orange for medium voltage
+                    elif voltage < 500:
+                        line_color = '#FF0000'  # Red for high voltage
+                    else:
+                        line_color = '#8B0000'  # DarkRed for very high voltage
+                    
+                    # Create a circle with voltage-based colors
+                    folium.Circle(
+                        location=coords,
+                        radius=400,  # Adjusted to 400 meters
+                        color=line_color,
+                        weight=2,
+                        fill=True,
+                        fill_color=line_color,
+                        fill_opacity=0.7,
+                        tooltip=point_tooltip,
+                        zIndex=1000  # High z-index to ensure they're on top
+                    ).add_to(power_line_group)
+                
+                # Add power line group to parent feature group
+                power_line_group.add_to(feature_group)
+        except Exception as e:
+            add_status_message(f"Error adding power lines for {event_display_name}: {str(e)}", "error")
+    
+    # Add the main feature group to the map
+    feature_group.add_to(m)
+    
+    return feature_group
+
 def display_risk_results(risk_summary, risk_events, m, power_lines_gdf, bounds):
     """
     Display risk analysis results in the UI and on the map.
@@ -613,47 +795,73 @@ def display_risk_results(risk_summary, risk_events, m, power_lines_gdf, bounds):
         power_lines_gdf: GeoDataFrame with power line geometries.
         bounds: List to append map bounds to.
     """
-    risk_container = st.container(border=True)
-    with risk_container:
+    with st.expander("Power Line Wind Risk Assessment", expanded=True):
         # Create UI components for risk display
         create_risk_ui_header(risk_summary)
         
-        # Create event selector if we have events
+        # Display all events as layers if we have events
         if "events" in risk_summary and risk_summary.get("events"):
             events = risk_summary["events"]
-            event_options = create_event_options(events)
             
-            selected_event_id = st.selectbox(
-                "Select Risk Timestamp to Display:",
-                options=[id for id, _ in event_options],
-                format_func=lambda x: dict(event_options).get(x, "Select..."),
-                key="wind_event_selector"
-            )
+            # Show a static summary of all events
+            st.markdown("### Wind Risk Timestamps")
+            st.markdown("Use the layers control in the top-right corner of the map to toggle risk areas for different timestamps.")
             
-            # Get risk areas to display
-            high_risk_df, moderate_risk_df = get_risk_areas_for_display(
-                selected_event_id, risk_events
-            )
+            # Create a table with event details
+            event_table_data = []
+            for event in events:
+                event_table_data.append({
+                    "Timestamp": event['timestamp'],
+                    "Risk Level": event['risk_level'],
+                    "High Risk Areas": event['high_risk_count'],
+                    "Moderate Risk Areas": event['moderate_risk_count'],
+                    "Max Wind (m/s)": f"{event['max_wind_speed']:.1f}"
+                })
             
-            # Add risk layers to map
-            is_pl_impact = risk_summary.get("analysis_type") == "power_line_impact"
-            add_risk_layers_to_map(
-                high_risk_df, moderate_risk_df, is_pl_impact, m, bounds
-            )
+            if event_table_data:
+                st.dataframe(event_table_data)
             
-            # Potentially add power line visualization
+            # Also add the voltage legend to help with power line interpretation
             if power_lines_gdf is not None and not power_lines_gdf.empty:
-                add_power_lines_to_map(
-                    power_lines_gdf, 
-                    high_risk_df, 
-                    moderate_risk_df,
-                    selected_event_id,
-                    risk_events,
-                    m
+                st.markdown("### Power Line Voltage Legend")
+                cols = st.columns(4)
+                cols[0].markdown("**Yellow**: < 100 kV (Low)")
+                cols[1].markdown("**Orange**: 100-300 kV (Medium)")
+                cols[2].markdown("**Red**: 300-500 kV (High)")
+                cols[3].markdown("**Dark Red**: > 500 kV (Very High)")
+            
+            # Process is_pl_impact
+            is_pl_impact = risk_summary.get("analysis_type") == "power_line_impact"
+            
+            # First add the "All Timestamps" layer
+            all_timestamps_group = add_risk_layer_for_event(
+                "all_timestamps", 
+                {"timestamp": "All Timestamps"}, 
+                risk_events, 
+                is_pl_impact, 
+                m, 
+                bounds,
+                power_lines_gdf
+            )
+            
+            # Process each individual timestamp event as a separate layer
+            for event in events:
+                event_id = event["id"]
+                add_risk_layer_for_event(
+                    event_id, 
+                    event, 
+                    risk_events, 
+                    is_pl_impact, 
+                    m, 
+                    bounds,
+                    power_lines_gdf
                 )
             
-            # Display details for a specific timestamp
-            display_event_details(selected_event_id, events, is_pl_impact)
+            # Add layer control to the map
+            folium.LayerControl().add_to(m)
             
+            # Add voltage legend to the map if power lines are used
+            if power_lines_gdf is not None and not power_lines_gdf.empty:
+                create_voltage_legend(m)
         else:
             add_status_message("Wind risk areas found, but no specific event timestamps generated.", "warning") 

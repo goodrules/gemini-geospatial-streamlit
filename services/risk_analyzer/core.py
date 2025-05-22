@@ -34,15 +34,15 @@ from services.risk_analyzer.visualization import display_risk_results
 from utils.streamlit_utils import add_status_message
 
 
-def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=16.0, moderate_threshold=13.0, analyze_power_line_impact=False):
+def analyze_wind_risk(weather_gdf, power_lines_gdf, high_threshold=15.0, moderate_threshold=9.0, analyze_power_line_impact=False):
     """
     Analyze wind risk, optionally intersecting with power line data.
 
     Args:
         weather_gdf: GeoDataFrame with weather forecast data (already filtered for time period).
         power_lines_gdf: GeoDataFrame with power line geometries (used only if analyze_power_line_impact is True).
-        high_threshold: High risk wind speed threshold in m/s (default: 16.0 m/s).
-        moderate_threshold: Moderate risk wind speed threshold in m/s (default: 13.0 m/s).
+        high_threshold: High risk wind speed threshold in m/s (default: 15.0 m/s).
+        moderate_threshold: Moderate risk wind speed threshold in m/s (default: 9.0 m/s).
         analyze_power_line_impact (bool): If True, perform intersection with power lines.
                                           If False, analyze general wind risk areas.
 

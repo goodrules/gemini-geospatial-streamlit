@@ -139,7 +139,78 @@ def get_gemini_response(prompt, history):
             parts=[types.Part.from_text(text=response.text)]
         ))
         
-        return response.text
+        # Enrich the response with additional context data for the chat
+        try:
+            # Parse the original response
+            response_data = json.loads(response.text)
+            map_actions = response_data.get("map_actions", [])
+            
+            # Create enhanced data structure to track action info 
+            action_summaries = []
+            enhanced_data = response_data.get("data", {})
+            
+            # Analyze specific map actions and enrich with contextual information
+            for action in map_actions:
+                action_type = action.get("action_type")
+                
+                # Capture detailed information about wind risk analysis
+                if action_type == "analyze_wind_risk":
+                    risk_info = {
+                        "action": "Wind Risk Analysis",
+                        "region": action.get("region", "Unknown"),
+                        "forecast_days": action.get("forecast_days", 3),
+                        "high_threshold": action.get("high_threshold", 15.0),
+                        "moderate_threshold": action.get("moderate_threshold", 9.0),
+                        "power_line_analysis": "Yes" if action.get("analyze_power_lines", False) else "No"
+                    }
+                    action_summaries.append(risk_info)
+                
+                # Add more action type handling as needed
+                elif action_type == "show_local_dataset" and action.get("dataset_name") == "power_lines":
+                    dataset_info = {
+                        "action": "Power Line Data Display",
+                        "region": action.get("region", "Unknown"),
+                        "dataset": "Power Transmission Lines"
+                    }
+                    action_summaries.append(dataset_info)
+                elif action_type == "show_weather":
+                    weather_info = {
+                        "action": "Weather Data Display",
+                        "region": action.get("region", "Unknown"),
+                        "metric": action.get("metric", "temperature"),
+                        "forecast_day": action.get("forecast_day", 0)
+                    }
+                    action_summaries.append(weather_info)
+            
+            # Add action summaries to the enhanced data
+            if action_summaries:
+                enhanced_data["action_summary"] = action_summaries
+                
+                # Add any status messages if they exist
+                if "status_messages" in st.session_state:
+                    status_info = []
+                    for msg in st.session_state.status_messages:
+                        # Include messages about risk areas, risk events, forecast timestamps, and power lines
+                        if any(keyword in msg["message"].lower() for keyword in 
+                              ["high risk", "moderate risk", "risk event", "timestamps", 
+                               "power line", "affected", "found", "risk area"]):
+                            status_info.append(msg["message"])
+                    if status_info:
+                        enhanced_data["status_info"] = status_info
+                
+                # Update data section
+                response_data["data"] = enhanced_data
+                
+                # Return updated response
+                return json.dumps(response_data)
+            
+            # If no enhancements were made, return original
+            return response.text
+            
+        except json.JSONDecodeError:
+            # If we can't parse JSON, return original response
+            return response.text
+        
     except Exception as e:
         # Ensure braces are doubled in f-string error message
         st.error(f"Error during Gemini API call: {{str(e)}}") 
