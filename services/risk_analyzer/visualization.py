@@ -795,8 +795,7 @@ def display_risk_results(risk_summary, risk_events, m, power_lines_gdf, bounds):
         power_lines_gdf: GeoDataFrame with power line geometries.
         bounds: List to append map bounds to.
     """
-    risk_container = st.container(border=True)
-    with risk_container:
+    with st.expander("Power Line Wind Risk Assessment", expanded=True):
         # Create UI components for risk display
         create_risk_ui_header(risk_summary)
         
