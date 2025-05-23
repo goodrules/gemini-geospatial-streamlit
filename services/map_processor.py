@@ -81,7 +81,6 @@ def process_actions_for_bounds(actions):
             continue
             
         action_type = action.get("action_type")
-        logger.info(f"Processing action type: {action_type}")
         if action_type in action_handlers:
             try:
                 # We need to create a temporary map for each handler
@@ -126,6 +125,7 @@ def process_map_actions(actions, m):
             continue
             
         action_type = action.get("action_type")
+        logger.info(f"Processing action type: {action_type}")
         if action_type in action_handlers:
             try:
                 # Process the action and collect bounds
