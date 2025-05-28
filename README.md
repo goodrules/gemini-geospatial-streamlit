@@ -21,9 +21,14 @@ A powerful interactive application that combines Google's Gemini AI with geospat
 
 ## 🚀 Quick Start
 
-1. **Clone the repository**
+1. **Clone the repository:** Click button below to clone the repository into a Google Cloud Shell Editor instance. This is a free development environment that is pre-authenticated to your Google Cloud environment. **Note:** Open the terminal within the Cloud Shell Editor window to run all the commands below, **not** Google Cloud Console Cloud Shell window. 
+   
+   [![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https%3A%2F%2Fgithub.com%2Fgoodrules%2Fgemini-geospatial-streamlit)
+
+   or clone to the development environment of your choice:
+
    ```bash
-   git clone https://github.com/yourusername/gemini-geospatial-streamlit.git
+   git clone https://github.com/goodrules/gemini-geospatial-streamlit.git
    cd gemini-geospatial-streamlit
    ```
 
@@ -35,24 +40,48 @@ A powerful interactive application that combines Google's Gemini AI with geospat
    ```
 
 3. **Set up environment variables**
+
+   First run this command replacing `<your-project-id>` with your project ID 
+   ```bash
+   gcloud config set project <your-project-id>
+   ```
+   Next, run the following to set environment variables in your terminal session:
+   
+   ```bash
+   export PROJECT_ID=$(gcloud config get-value project)
+   export BUCKET_NAME="${PROJECT_ID}-gemini-geospatial-streamlit"
+   export LOCATION="us-central1"
+   ```
    
    Create a `.env` file in the project root with the following variables:
+   
+   ```bash
+   # Create the .env file and write the variables to it
+   cat <<EOF > .env
+   PROJECT_ID="${PROJECT_ID}"
+   GCS_BUCKET_NAME="${GCS_BUCKET_NAME}"
+   EOF
+
+   echo ".env file generated successfully."
    ```
-   PROJECT_ID=your_google_cloud_project_id
-   GCS_BUCKET_NAME=your_gcs_bucket_name
+
+   Finally, create a GCS bucket
+   ```bash
+   gcloud storage buckets create "gs://${BUCKET_NAME}" --location=$LOCATION
    ```
 
 4. **Download supplementary shapefiles**
    ```bash
    python download_gcs_data.py
    ```
+
    This will download required shapefiles and other geospatial data from the specified GCS bucket to the `data/local` directory.
 
-5. **Run the application**
+5. **Run the application** setting the [required flags](https://cloud.google.com/shell/docs/using-web-preview#accessing_streamlit_applications) 
    ```bash
-   streamlit run app.py
+   streamlit run app.py --browser.serverAddress=localhost --server.enableCORS=false --server.enableXsrfProtection=false
    ```
-
+   
 6. **Access the web interface**
    
    Open your browser and navigate to http://localhost:8501
