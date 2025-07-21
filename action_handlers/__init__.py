@@ -19,7 +19,7 @@ from action_handlers.data_handlers import handle_show_local_dataset
 from action_handlers.view_handlers import handle_fit_bounds
 from action_handlers.wind_risk_handlers import handle_analyze_wind_risk
 from action_handlers.weather_handlers import handle_show_weather
-from action_handlers.temperature_risk_handlers import handle_unsafe_temperature
+from action_handlers.temperature_risk_handlers import handle_unsafe_temperature, handle_high_temperature_risk
 
 # Export all handlers
 __all__ = [
@@ -33,5 +33,6 @@ __all__ = [
     'handle_fit_bounds',
     'handle_analyze_wind_risk',
     'handle_show_weather',
-    'handle_unsafe_temperature'
+    'handle_unsafe_temperature',
+    'handle_high_temperature_risk'
 ] 

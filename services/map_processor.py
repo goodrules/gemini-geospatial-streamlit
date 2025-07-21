@@ -28,7 +28,8 @@ from action_handlers import (
     handle_fit_bounds,
     handle_analyze_wind_risk,
     handle_show_weather,
-    handle_unsafe_temperature
+    handle_unsafe_temperature,
+    handle_high_temperature_risk
 )
 
 import hashlib
@@ -167,5 +168,6 @@ def get_action_handlers():
         "add_heatmap": handle_add_heatmap,
         "add_line": handle_add_line,
         "add_polygon": handle_add_polygon,
-        "unsafe_temperature": handle_unsafe_temperature
+        "unsafe_temperature": handle_unsafe_temperature,
+        "high_temperature_risk": handle_high_temperature_risk
     }

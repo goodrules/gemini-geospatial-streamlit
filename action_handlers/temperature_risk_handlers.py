@@ -14,7 +14,7 @@ from services.weather_service import fetch_weather_data, filter_weather_data_by_
 from utils.weather_utils import prepare_display_values, create_weather_geodataframe
 from utils.streamlit_utils import add_status_message
 from utils.geo_utils import find_region_by_name
-from data.geospatial_data import get_us_states
+from data.geospatial_data import get_us_states, get_us_power_lines
 
 def _get_region_data(region_name: str, m: folium.Map) -> Tuple[Optional[gpd.GeoDataFrame], Optional[List]]:
     """Get region GeoDataFrame and add boundary to map."""
@@ -383,5 +383,351 @@ def handle_unsafe_temperature(action: ActionDict, m: folium.Map) -> BoundsList:
         
     except Exception as e:
         add_status_message(f"Error processing temperature risk data: {str(e)}", "error")
+    
+    return bounds
+
+
+def _prepare_high_temperature_data_multi_timestamp(weather_gdf: gpd.GeoDataFrame, region_polygon, max_temp_f: float) -> Optional[gpd.GeoDataFrame]:
+    """Process weather data to find dangerous high temperatures across all forecast timestamps."""
+    try:
+        if weather_gdf is None or weather_gdf.empty:
+            add_status_message("No weather data provided for temperature analysis", "warning")
+            return None
+        
+        # Convert Kelvin to Celsius first, then to Fahrenheit
+        if 'temperature' in weather_gdf.columns:
+            # Temperature is in Kelvin, convert to Celsius then Fahrenheit
+            weather_gdf = weather_gdf.copy()
+            weather_gdf["temp_celsius"] = weather_gdf["temperature"] - 273.15
+            weather_gdf["temp_f"] = weather_gdf["temp_celsius"] * 9/5 + 32
+        else:
+            add_status_message("Temperature column not found in weather data", "error")
+            return None
+        
+        # Filter only dangerous high temperatures (above threshold)
+        high_temp_weather_gdf = weather_gdf[weather_gdf["temp_f"] >= max_temp_f].copy()
+        
+        if high_temp_weather_gdf.empty:
+            add_status_message(f"No dangerous temperatures (above {max_temp_f}°F) found in the region", "info")
+            return None
+        
+        add_status_message(f"Found {len(high_temp_weather_gdf)} weather points with temperatures above {max_temp_f}°F", "info")
+        return high_temp_weather_gdf
+        
+    except Exception as e:
+        add_status_message(f"Error processing high temperature data: {str(e)}", "error")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def _prepare_high_temperature_data(weather_df: pd.DataFrame, region_polygon, max_temp_f: float) -> Optional[gpd.GeoDataFrame]:
+    """Process weather data to find dangerous high temperatures."""
+    # Create GeoDataFrame from the weather data
+    weather_gdf = create_weather_geodataframe(weather_df)
+    if weather_gdf is None or weather_gdf.empty:
+        add_status_message("Failed to convert weather data to GeoDataFrame", "warning")
+        return None
+        
+    # Prepare values for display (convert Kelvin to Celsius first)
+    weather_gdf, unit = prepare_display_values(weather_gdf, "temperature")
+    
+    # Convert Celsius to Fahrenheit for high temperature check
+    weather_gdf["temp_f"] = weather_gdf["display_value"] * 9/5 + 32
+    
+    # Filter weather data by the region
+    weather_gdf = weather_gdf[weather_gdf.intersects(region_polygon)].copy()
+    
+    if weather_gdf.empty:
+        add_status_message("No weather data found for region", "warning")
+        return None
+        
+    # Filter only dangerous high temperatures (above threshold)
+    high_temp_weather_gdf = weather_gdf[weather_gdf["temp_f"] >= max_temp_f].copy()
+    
+    if high_temp_weather_gdf.empty:
+        add_status_message(f"No dangerous temperatures (above {max_temp_f}°F) found in the region", "info")
+        return None
+    
+    add_status_message(f"Found {len(high_temp_weather_gdf)} areas with temperatures above {max_temp_f}°F", "info")
+    return high_temp_weather_gdf
+
+
+def _create_high_temperature_features(high_temp_weather_gdf: gpd.GeoDataFrame, max_temp_f: float) -> Dict:
+    """Create GeoJSON features from the high temperature data."""
+    # Get max temperature to determine color range
+    max_temp = high_temp_weather_gdf["temp_f"].max()
+    if pd.isna(max_temp):
+        max_temp = max_temp_f + 15
+    
+    # Add ID column for joining
+    high_temp_weather_gdf = high_temp_weather_gdf.reset_index(drop=True)
+    high_temp_weather_gdf['id'] = high_temp_weather_gdf.index.astype(str)
+    
+    # Create a direct mapping from ID to temperature
+    temp_data = pd.DataFrame({
+        'id': high_temp_weather_gdf['id'],
+        'temp_f': high_temp_weather_gdf['temp_f']
+    })
+    
+    # Create a clean GeoJSON with IDs matching the data
+    features = []
+    for idx, row in high_temp_weather_gdf.iterrows():
+        try:
+            features.append({
+                'type': 'Feature',
+                'id': str(idx),  # Use index as ID
+                'properties': {
+                    'id': str(idx),
+                    'temperature': float(row['temp_f'])
+                },
+                'geometry': row.geometry.__geo_interface__
+            })
+        except Exception:
+            continue
+    
+    return {
+        'features': features,
+        'min_temp': max_temp_f,
+        'max_temp': max_temp,
+        'total_bounds': high_temp_weather_gdf.total_bounds
+    }
+
+
+def _visualize_high_temperatures(temperature_data: Dict, m: folium.Map) -> None:
+    """Visualize high temperature data on the map."""
+    features = temperature_data['features']
+    min_temp_f = temperature_data['min_temp']
+    max_temp = temperature_data['max_temp']
+    
+    if not features:
+        return
+    
+    geo_json = {'type': 'FeatureCollection', 'features': features}
+    
+    # Create a custom color map with red-orange colors for hot temperatures
+    # Using darker reds for hotter temperatures
+    colors = ['#fee5d9', '#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#99000d']
+    colormap = LinearColormap(
+        colors=colors,
+        vmin=min_temp_f,
+        vmax=max_temp
+    )
+    colormap.caption = f"Temperature (°F) above {min_temp_f}°F"
+    
+    # Add the colormap to the map
+    colormap.add_to(m)
+    
+    # Apply the temperature visualization as a GeoJSON layer with color function
+    folium.GeoJson(
+        geo_json,
+        name="High Temperatures",
+        style_function=lambda feature: {
+            'fillColor': colormap(feature['properties']['temperature']),
+            'color': 'black',
+            'weight': 0.5,
+            'fillOpacity': 0.7
+        },
+        tooltip=folium.GeoJsonTooltip(
+            fields=['temperature'],
+            aliases=['Temperature (°F):'],
+            style=('background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;')
+        ),
+        highlight_function=lambda x: {'weight': 3, 'fillOpacity': 0.9}
+    ).add_to(m)
+
+
+def _process_power_lines_high_temp(region_polygon, high_temp_weather_gdf: gpd.GeoDataFrame) -> Dict:
+    """Process power lines data and calculate affected lines by high temperature."""
+    try:
+        # Load power lines data
+        power_lines_gdf = get_us_power_lines(use_geojson=True)
+        
+        if power_lines_gdf is None or power_lines_gdf.empty:
+            add_status_message("Failed to load power lines data", "error")
+            return {'affected_lines': [], 'normal_lines': [], 'lines_at_risk': 0, 'total_lines': 0}
+        
+        # Filter power lines to the region
+        power_lines_gdf = power_lines_gdf[power_lines_gdf.intersects(region_polygon)].copy()
+        
+        if power_lines_gdf.empty:
+            add_status_message("No power lines found in the region", "warning")
+            return {'affected_lines': [], 'normal_lines': [], 'lines_at_risk': 0, 'total_lines': 0}
+        
+        # Reset index to ensure consistent sampling 
+        power_lines_gdf = power_lines_gdf.reset_index(drop=True)
+        total_lines = len(power_lines_gdf)
+        
+        # Calculate power lines in high temperature zones
+        high_temp_areas = high_temp_weather_gdf.unary_union
+        power_lines_gdf['in_high_temp_zone'] = power_lines_gdf.intersects(high_temp_areas)
+        lines_at_risk = int(power_lines_gdf['in_high_temp_zone'].sum())
+        
+        add_status_message(f"{lines_at_risk} of {total_lines} power line points affected by high temperatures", "info")
+        
+        # Extract at-risk power lines data
+        at_risk_lines = power_lines_gdf[power_lines_gdf['in_high_temp_zone'] == True].head(100)
+        affected_lines = []
+        
+        for _, row in at_risk_lines.iterrows():
+            if hasattr(row.geometry, 'y') and hasattr(row.geometry, 'x'):
+                affected_lines.append((row.geometry.y, row.geometry.x))
+        
+        # Extract normal power lines data - use deterministic selection
+        normal_lines_gdf = power_lines_gdf[power_lines_gdf['in_high_temp_zone'] == False]
+        # Take evenly spaced lines to ensure consistency
+        normal_lines_gdf = normal_lines_gdf.iloc[::max(1, len(normal_lines_gdf) // 50)][:50]
+        
+        normal_lines = []
+        for _, row in normal_lines_gdf.iterrows():
+            if hasattr(row.geometry, 'y') and hasattr(row.geometry, 'x'):
+                normal_lines.append((row.geometry.y, row.geometry.x))
+        
+        return {
+            'affected_lines': affected_lines,
+            'normal_lines': normal_lines,
+            'lines_at_risk': lines_at_risk,
+            'total_lines': total_lines
+        }
+        
+    except Exception as e:
+        add_status_message(f"Error processing power lines: {str(e)}", "error")
+        return {'affected_lines': [], 'normal_lines': [], 'lines_at_risk': 0, 'total_lines': 0}
+
+
+def _visualize_power_lines_high_temp(power_lines_data: Dict, m: folium.Map) -> None:
+    """Visualize power lines on the map for high temperature risk."""
+    affected_lines = power_lines_data['affected_lines']
+    normal_lines = power_lines_data['normal_lines']
+    
+    # Create feature group for power lines
+    lines_layer = folium.FeatureGroup(name="Power Lines")
+    
+    # Draw affected power lines
+    for lat, lon in affected_lines:
+        folium.CircleMarker(
+            location=[lat, lon],
+            radius=4,
+            color='black',
+            weight=1,
+            fill=True,
+            fill_color='red',
+            fill_opacity=0.8,
+            tooltip="Power Line (at risk from heat)"
+        ).add_to(lines_layer)
+    
+    # Draw normal power lines
+    for lat, lon in normal_lines:
+        folium.CircleMarker(
+            location=[lat, lon],
+            radius=2,
+            color='black',
+            weight=1,
+            fill=True,
+            fill_color='blue',
+            fill_opacity=0.6,
+            tooltip="Power Line (normal)"
+        ).add_to(lines_layer)
+    
+    # Add lines layer to map
+    lines_layer.add_to(m)
+    
+    # Add a legend
+    legend_html = '''
+    <div style="position: fixed; 
+        bottom: 50px; right: 50px; 
+        border:2px solid grey; z-index:9999; font-size:14px;
+        background-color: white;
+        padding: 10px;
+        opacity: 0.8;">
+        &nbsp; <span style="color:red">●</span> &nbsp; Power Lines at Risk (High Temp) <br>
+        &nbsp; <span style="color:blue">●</span> &nbsp; Normal Power Lines
+    </div>
+    '''
+    legend_element = folium.Element(legend_html)
+    m.get_root().html.add_child(legend_element)
+
+
+@create_handler
+def handle_high_temperature_risk(action: ActionDict, m: folium.Map) -> BoundsList:
+    """
+    Handle the high_temperature_risk action that shows areas with dangerous high temperatures
+    and overlays power line data to show lines at risk of sag and faults.
+    
+    Args:
+        action: The action dictionary with parameters
+        m: The folium map object
+        
+    Returns:
+        List of bounds to include in the overall map fitting
+    """
+    bounds = []
+    
+    try:
+        # Extract and validate parameters (similar to wind risk)
+        region_name = action.get("region", "Texas")
+        max_temp_f = action.get("max_temp_f", 95)
+        forecast_days = action.get("forecast_days", 3)
+        init_date = action.get("init_date")
+        analyze_power_lines = action.get("analyze_power_lines", True)
+        
+        if not region_name:
+            add_status_message("Region parameter is required for high temperature risk analysis.", "error")
+            return bounds
+        
+        add_status_message(f"Analyzing high temperature risk to power lines in {region_name} over the next {forecast_days} day(s) (threshold >= {max_temp_f}°F)...", "info")
+        
+        # 1. Load weather data for forecast period (like wind risk)
+        from services.risk_analyzer.data_loading import load_weather_data, find_and_add_region_to_map, filter_weather_by_region
+        
+        weather_df = load_weather_data(forecast_days)
+        if weather_df is None or weather_df.empty:
+            add_status_message("No weather data available for high temperature risk analysis.", "warning")
+            return bounds
+        
+        # 2. Find and add region to the map
+        region_result = find_and_add_region_to_map(region_name, m)
+        if not region_result["success"]:
+            return bounds
+            
+        bounds.append(region_result["bounds"])
+        region_polygon = region_result["polygon"]
+        
+        # 3. Filter weather data by region
+        weather_gdf = filter_weather_by_region(weather_df, region_polygon)
+        if weather_gdf.empty:
+            add_status_message(f"No weather data points found within {region_name}.", "warning")
+            return bounds
+        
+        # 4. Process high temperature data (analyze all forecast timestamps)
+        high_temp_weather_gdf = _prepare_high_temperature_data_multi_timestamp(weather_gdf, region_polygon, max_temp_f)
+        if high_temp_weather_gdf is None or high_temp_weather_gdf.empty:
+            add_status_message(f"No dangerous temperatures (above {max_temp_f}°F) found in {region_name} for the forecast period.", "info")
+            return bounds
+        
+        # 5. Create temperature features
+        temperature_data = _create_high_temperature_features(high_temp_weather_gdf, max_temp_f)
+        
+        # 6. Visualize temperatures on map
+        _visualize_high_temperatures(temperature_data, m)
+            
+        # 7. Process and visualize power lines if requested
+        if analyze_power_lines:
+            try:
+                power_lines_data = _process_power_lines_high_temp(region_polygon, high_temp_weather_gdf)
+                _visualize_power_lines_high_temp(power_lines_data, m)
+            except Exception as e:
+                add_status_message(f"Error displaying power lines: {str(e)}", "error")
+        
+        # 8. Add layer control
+        folium.LayerControl(position='topright').add_to(m)
+        
+        # Return the region bounds for proper zooming
+        return bounds
+        
+    except Exception as e:
+        add_status_message(f"Error processing high temperature risk data: {str(e)}", "error")
+        import traceback
+        traceback.print_exc()
     
     return bounds 

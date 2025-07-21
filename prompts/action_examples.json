@@ -94,5 +94,13 @@
     "forecast_date": "2022-12-18",
     "region": "North Dakota",
     "show_oil_wells": true
+  },
+  {
+    "action_type": "high_temperature_risk",
+    "max_temp_f": 95,
+    "forecast_days": 3,
+    "init_date": "2024-12-18",
+    "region": "Texas",
+    "analyze_power_lines": true
   }
 ]

@@ -22,4 +22,8 @@
   {% include "temperature_risk_notes.txt" %}
 {% endif %}
 
+{% if include_high_temperature_risk_notes is not defined or include_high_temperature_risk_notes %}
+  {% include "high_temperature_risk_notes.txt" %}
+{% endif %}
+
 {% include "data_notes.txt" %} 
