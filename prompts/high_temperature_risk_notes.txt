@@ -1,0 +1,101 @@
+IMPORTANT: When users ask about power lines at risk from HIGH TEMPERATURES, extreme heat affecting power infrastructure, 
+or power line sag and faults due to heat, use the "high_temperature_risk" action type to analyze temperature risk to power lines.
+
+This action identifies areas where temperatures exceed dangerous thresholds that can cause power line sag, reduced capacity, 
+and electrical faults. High temperatures can cause conductor expansion and sag, potentially leading to outages.
+
+IMPORTANT: Remember that weather data from the service is provided in Kelvin. The handler will automatically
+convert Kelvin to Fahrenheit for threshold comparisons and visualization.
+
+IMPORTANT: Power line data is available for the entire United States. You can analyze high temperature risk 
+to power lines in any US state or county.
+
+IMPORTANT: ALL parameters shown in the examples MUST be included in your responses, even if they match the defaults.
+
+The "high_temperature_risk" action supports the following parameters:
+- "region": Any US state or county to analyze (e.g., "Texas", "California", "Maricopa County, AZ")
+- "max_temp_f": Maximum safe temperature in Fahrenheit (user can specify any threshold, default: 95). Areas above this are highlighted
+- "forecast_days": Number of days to analyze from the selected init_date (default: 3)
+- "forecast_date": Specific date for analysis (format: "YYYY-MM-DD") - alternative to forecast_days
+- "analyze_power_lines": Boolean to show power lines overlay and risk intersection (default: true)
+
+IMPORTANT: Extract the user's preferred temperature threshold from their query if provided. For example:
+- "temperatures above 100 degrees" → max_temp_f: 100
+- "areas hotter than 105°F" → max_temp_f: 105
+- "extreme heat above 110 degrees" → max_temp_f: 110
+
+This action analyzes risk at specific forecast timestamps (06:00, 12:00, 18:00 UTC) within the specified number of days.
+
+The action provides the following insights:
+- Heat map visualization of areas with dangerous high temperatures
+- Power line locations overlaid on the temperature map
+- Power lines in high temperature zones are highlighted
+- Count of affected power line segments in dangerous temperature areas
+
+Examples:
+
+For showing high temperature risk to power lines in New York on a specific date:
+{
+    "response": "I've analyzed high temperature risk to power lines in New York for June 24, 2025. The map shows areas where temperatures exceed 95°F that could cause power line sag and faults, with affected power line infrastructure highlighted.",
+    "map_actions": [
+        {
+            "action_type": "high_temperature_risk",
+            "max_temp_f": 95,
+            "forecast_date": "2025-06-24",  
+            "region": "New York",
+            "analyze_power_lines": true
+        }
+    ]
+}
+
+For showing high temperature risk to power lines in Texas:
+{
+    "map_actions": [
+        {
+            "action_type": "high_temperature_risk",
+            "max_temp_f": 95,
+            "forecast_days": 3,  
+            "region": "Texas",
+            "analyze_power_lines": true
+        }
+    ]
+}
+
+For showing extreme heat risk in California:
+{
+    "map_actions": [
+        {
+            "action_type": "high_temperature_risk",
+            "max_temp_f": 105,
+            "forecast_days": 7,  
+            "region": "California",
+            "analyze_power_lines": true
+        }
+    ]
+}
+
+For showing high temperature risk in a specific county:
+{
+    "map_actions": [
+        {
+            "action_type": "high_temperature_risk",
+            "max_temp_f": 110,
+            "forecast_days": 3,  
+            "region": "Maricopa County, AZ",
+            "analyze_power_lines": true
+        }
+    ]
+}
+
+For showing dangerous high temperatures with a user-specified threshold:
+{
+    "map_actions": [
+        {
+            "action_type": "high_temperature_risk",
+            "max_temp_f": 115,
+            "forecast_days": 5,  
+            "region": "Arizona",
+            "analyze_power_lines": true
+        }
+    ]
+}

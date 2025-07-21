@@ -133,6 +133,7 @@ def render_example_questions():
     weather_examples = [
         "Are any power lines at risk of high wind speed in the next 10 days near Houston TX starting on July 8, 2024?",
         "Show me temperature risks to oil wells in North Dakota starting on February 13, 2021 where temperatures are lower than -15˚F",
+        "Are any power lines at risk from high temperatures above 95°F in New York on June 24, 2025?",
         "Show the temperature forecast for California",
         "What is the wind speed forecast for Chicago?",
     ]
