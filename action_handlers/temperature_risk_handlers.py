@@ -13,6 +13,7 @@ from action_handlers.base_handler import create_handler, ActionDict, BoundsList
 from services.weather_service import fetch_weather_data, filter_weather_data_by_time
 from utils.weather_utils import prepare_display_values, create_weather_geodataframe
 from utils.streamlit_utils import add_status_message
+from data.geospatial_data import get_oil_wells_data
 from utils.geo_utils import find_region_by_name
 from data.geospatial_data import get_us_states, get_us_power_lines
 
@@ -191,8 +192,12 @@ def _is_oil_wells_data_available(region_name: str) -> bool:
     """Check if oil wells data is available for the specified region."""
     # Currently, oil wells data is only available for North Dakota
     if region_name.lower() == "north dakota":
-        oil_wells_path = "data/local/north_dakota_oil_wells.geojson"
-        return os.path.exists(oil_wells_path)
+        try:
+            # Try to load oil wells data to check availability
+            oil_wells_gdf = get_oil_wells_data()
+            return oil_wells_gdf is not None and not oil_wells_gdf.empty
+        except Exception:
+            return False
     return False
 
 def _process_oil_wells(region_name: str, selected_date_str: str, unsafe_weather_gdf: gpd.GeoDataFrame) -> Dict:
@@ -209,8 +214,7 @@ def _process_oil_wells(region_name: str, selected_date_str: str, unsafe_weather_
         return st.session_state.oil_wells_cache[cache_key]
     
     # Load oil wells data - specific to North Dakota
-    oil_wells_path = "data/local/north_dakota_oil_wells.geojson"
-    oil_wells_gdf = gpd.read_file(oil_wells_path)
+    oil_wells_gdf = get_oil_wells_data()
     
     if oil_wells_gdf is None or oil_wells_gdf.empty:
         add_status_message("Failed to load oil wells data", "error")

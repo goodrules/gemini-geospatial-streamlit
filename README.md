@@ -108,6 +108,58 @@ You can configure the application behavior in the sidebar, including:
 - Date selection for weather forecasts
 - Debug panel for viewing system prompts and API responses
 
+## Cloud Deployment
+
+### 1. Enable Required APIs
+```bash
+# enable services
+gcloud services enable storage.googleapis.com &&
+gcloud services enable run.googleapis.com &&
+gcloud services enable aiplatform.googleapis.com &&
+gcloud services enable cloudbuild.googleapis.com
+
+# grant permissions to service account
+export PROJECT_ID=`gcloud config get-value project`
+export PROJECT_NUMBER=`gcloud projects describe $PROJECT_ID --format="value(projectNumber)"`
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com --role="roles/run.builder"
+#gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com --role="roles/logging.logWriter"
+#gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com --role="roles/storage.objectUser"
+```
+
+### 2. Deploy to Cloud Run
+
+**Manually enable IAP then run:**
+> gcloud beta run deploy wp-extract-demo --source . --region="us-central1" --no-allow-unauthenticated --iap
+
+-- Deploying from Artifact Registry ...: Y
+-- Allow unauthenticated invocations...: N
+
+### 3. Enable IAP
+2. Add IAP-secured Web App User to appropriate users
+
+
+### 4: Configure Environment and Secrets
+1. Go to Cloud Run service → Source → Edit source
+2. Rename `.env.example` to `.env` and update with your configuration, for example:
+```bash
+GCP_PROJECT_ID=your-project-id
+GCS_BUCKET_NAME=your-bucket
+GCS_PREFIX=examples/
+GCP_REGION=global
+DEFAULT_MODEL=gemini-2.5-pro
+FLASH_MODEL=gemini-2.5-flash
+```
+3. Rename `secrets.toml.example` to `secrets.toml`
+4. Update with your Google Auth Platform credentials, for example:
+```toml
+[auth]
+redirect_uri = "https://your-app-url/oauth2callback"
+cookie_secret = "your-random-cookie-secret"
+client_id = "your-google-client-id"
+client_secret = "your-google-client-secret"
+server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
+```
+
 ## 📊 Data Sources
 
 The application uses several data sources:

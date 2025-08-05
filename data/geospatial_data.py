@@ -10,6 +10,15 @@ import json
 from datetime import datetime
 from shapely.geometry import mapping
 from utils.streamlit_utils import add_status_message
+from google.cloud import storage
+from dotenv import load_dotenv
+import logging
+
+# Load environment variables
+load_dotenv()
+
+# Setup module logger
+logger = logging.getLogger(__name__)
 
 # Function to fetch and cache US states data from BigQuery
 @st.cache_data(ttl=3600)
@@ -198,24 +207,39 @@ def get_local_shapefile(filepath, layer=None):
         st.error(f"Error loading local shapefile {filepath}: {str(e)}")
         return None
 
-# Function to load common local datasets
-@st.cache_data(ttl=3600)
-def get_us_power_lines(use_geojson=True):
+def read_geojson_from_gcs(filename):
     """
-    Load power lines data. 
+    Read GeoJSON file directly from Google Cloud Storage.
     
     Args:
-        use_geojson: If True, use the simplified GeoJSON points file.
-                    If False, use the original shapefile with line geometries.
-    
+        filename: Name of the GeoJSON file in the bucket (e.g., 'power_lines_points_us.geojson')
+        
     Returns:
-        GeoDataFrame containing power line data
+        GeoDataFrame containing the geospatial data, or None if reading fails
     """
-    # if use_geojson:
     try:
-        add_status_message("Loading power lines from GeoJSON points file", "info")
-        geojson_path = "data/local/power_lines_points_us.geojson"
-        gdf = gpd.read_file(geojson_path)
+        # Get bucket name from environment
+        bucket_name = os.environ.get("GCS_BUCKET_NAME")
+        if not bucket_name:
+            logger.warning("GCS_BUCKET_NAME environment variable not set")
+            return None
+        
+        # Initialize GCS client
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(filename)
+        
+        # Check if file exists
+        if not blob.exists():
+            logger.warning(f"File {filename} not found in GCS bucket {bucket_name}")
+            return None
+        
+        # Download file content as string
+        geojson_content = blob.download_as_text()
+        
+        # Read with GeoPandas from string
+        import io
+        gdf = gpd.read_file(io.StringIO(geojson_content))
         
         # Ensure CRS is WGS84 for web mapping
         if gdf.crs is not None and gdf.crs != "EPSG:4326":
@@ -225,15 +249,114 @@ def get_us_power_lines(use_geojson=True):
         for col in gdf.columns:
             if pd.api.types.is_datetime64_any_dtype(gdf[col]):
                 gdf[col] = gdf[col].astype(str)
-                
-        # Add a random value column for visualization if it doesn't exist
-        if 'value' not in gdf.columns:
-            gdf['value'] = np.random.randint(1, 100, size=len(gdf))
-            
+        
+        logger.info(f"Successfully loaded {filename} from GCS bucket {bucket_name}")
         return gdf
+        
     except Exception as e:
-        st.error(f"Error loading power lines GeoJSON: {str(e)}")
-        # Fall back to shapefile if GeoJSON fails
+        logger.error(f"Error reading {filename} from GCS: {str(e)}")
+        return None
+
+# Function to load common local datasets
+@st.cache_data(ttl=3600)
+def get_us_power_lines(use_geojson=True, use_gcs=True):
+    """
+    Load power lines data. 
+    
+    Args:
+        use_geojson: If True, use the simplified GeoJSON points file.
+                    If False, use the original shapefile with line geometries.
+        use_gcs: If True, try loading from GCS first, then fallback to local files.
+    
+    Returns:
+        GeoDataFrame containing power line data
+    """
+    if use_geojson:
+        gdf = None
+        
+        # Try GCS first if enabled
+        if use_gcs:
+            try:
+                add_status_message("Loading power lines from GCS bucket", "info")
+                gdf = read_geojson_from_gcs("power_lines_points_us.geojson")
+            except Exception as e:
+                logger.error(f"Error loading power lines from GCS: {str(e)}")
+                add_status_message("GCS loading failed, trying local files", "warning")
+        
+        # Fallback to local file if GCS failed or disabled
+        if gdf is None:
+            try:
+                add_status_message("Loading power lines from local GeoJSON file", "info")
+                geojson_path = "data/local/power_lines_points_us.geojson"
+                gdf = gpd.read_file(geojson_path)
+                
+                # Ensure CRS is WGS84 for web mapping
+                if gdf.crs is not None and gdf.crs != "EPSG:4326":
+                    gdf = gdf.to_crs("EPSG:4326")
+                    
+                # Convert timestamp columns to string to avoid serialization issues
+                for col in gdf.columns:
+                    if pd.api.types.is_datetime64_any_dtype(gdf[col]):
+                        gdf[col] = gdf[col].astype(str)
+            except Exception as e:
+                st.error(f"Error loading power lines GeoJSON: {str(e)}")
+                return None
+        
+        # Add common processing for both GCS and local data
+        if gdf is not None:
+            # Add a random value column for visualization if it doesn't exist
+            if 'value' not in gdf.columns:
+                gdf['value'] = np.random.randint(1, 100, size=len(gdf))
+                
+            return gdf
+    
+    # Original shapefile fallback logic would go here
+    st.error("Shapefile loading not implemented in this version")
+    return None
+
+@st.cache_data(ttl=3600)
+def get_oil_wells_data(use_gcs=True):
+    """
+    Load oil wells data from North Dakota.
+    
+    Args:
+        use_gcs: If True, try loading from GCS first, then fallback to local files.
+    
+    Returns:
+        GeoDataFrame containing oil wells data, or None if loading fails
+    """
+    gdf = None
+    
+    # Try GCS first if enabled
+    if use_gcs:
+        try:
+            add_status_message("Loading oil wells data from GCS bucket", "info")
+            gdf = read_geojson_from_gcs("north_dakota_oil_wells.geojson")
+        except Exception as e:
+            logger.error(f"Error loading oil wells from GCS: {str(e)}")
+            add_status_message("GCS loading failed, trying local files", "warning")
+    
+    # Fallback to local file if GCS failed or disabled
+    if gdf is None:
+        try:
+            add_status_message("Loading oil wells from local GeoJSON file", "info")
+            oil_wells_path = "data/local/north_dakota_oil_wells.geojson"
+            gdf = gpd.read_file(oil_wells_path)
+            
+            # Ensure CRS is WGS84 for web mapping
+            if gdf.crs is not None and gdf.crs != "EPSG:4326":
+                gdf = gdf.to_crs("EPSG:4326")
+                
+            # Convert timestamp columns to string to avoid serialization issues
+            for col in gdf.columns:
+                if pd.api.types.is_datetime64_any_dtype(gdf[col]):
+                    gdf[col] = gdf[col].astype(str)
+        except Exception as e:
+            logger.error(f"Error loading oil wells GeoJSON: {str(e)}")
+            add_status_message(f"Failed to load oil wells data: {str(e)}", "error")
+            return None
+    
+    return gdf
 
 def initialize_app_data():
     """Initialize and cache all geospatial data at app startup."""
