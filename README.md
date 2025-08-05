@@ -122,14 +122,28 @@ gcloud services enable cloudbuild.googleapis.com
 export PROJECT_ID=`gcloud config get-value project`
 export PROJECT_NUMBER=`gcloud projects describe $PROJECT_ID --format="value(projectNumber)"`
 gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com --role="roles/run.builder"
-#gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com --role="roles/logging.logWriter"
-#gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com --role="roles/storage.objectUser"
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com --role="roles/logging.logWriter"
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com --role="roles/storage.objectUser"
 ```
 
 ### 2. Deploy to Cloud Run
 
 **Manually enable IAP then run:**
-> gcloud beta run deploy wp-extract-demo --source . --region="us-central1" --no-allow-unauthenticated --iap
+```bash
+gcloud beta run deploy gemini-geospatial-streamlit \
+--source . \
+--region="us-central1" \
+--platform managed \
+--memory 32Gi \
+--cpu 8 \
+--region us-central1 \
+--min-instances 1 \
+--timeout 1h \
+--no-cpu-throttling \
+--cpu-boost \
+--no-allow-unauthenticated \
+--iap
+```
 
 -- Deploying from Artifact Registry ...: Y
 -- Allow unauthenticated invocations...: N
@@ -144,20 +158,6 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJ
 ```bash
 GCP_PROJECT_ID=your-project-id
 GCS_BUCKET_NAME=your-bucket
-GCS_PREFIX=examples/
-GCP_REGION=global
-DEFAULT_MODEL=gemini-2.5-pro
-FLASH_MODEL=gemini-2.5-flash
-```
-3. Rename `secrets.toml.example` to `secrets.toml`
-4. Update with your Google Auth Platform credentials, for example:
-```toml
-[auth]
-redirect_uri = "https://your-app-url/oauth2callback"
-cookie_secret = "your-random-cookie-secret"
-client_id = "your-google-client-id"
-client_secret = "your-google-client-secret"
-server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
 ```
 
 ## 📊 Data Sources
