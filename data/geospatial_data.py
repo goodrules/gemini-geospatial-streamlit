@@ -139,7 +139,7 @@ def get_us_zipcodes():
             state_code,
             state_name,
             fips_class_code,
-            mtfcc_feature_class_code,
+            mtlcc_feature_class_code,
             functional_status,
             area_land_meters,
             area_water_meters,
