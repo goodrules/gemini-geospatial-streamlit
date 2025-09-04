@@ -6,67 +6,81 @@ A powerful interactive application that combines Google's Gemini AI with geospat
 
 ## 🌟 Features
 
-- **AI-Powered Chat Interface**: Interact with geospatial data using natural language queries
-- **Interactive Map Visualization**: Real-time display of geospatial data with multiple layer support
-- **Risk Analysis Tools**: Specialized tools for assessing weather risks to infrastructure
-- **Power Line Infrastructure Analysis**: Visualize and analyze power line networks
-- **Integrated Weather Data**: Access weather forecasts and analyze weather-related risks
+-   **AI-Powered Chat Interface**: Interact with geospatial data using natural language queries
+-   **Interactive Map Visualization**: Real-time display of geospatial data with multiple layer support
+-   **Risk Analysis Tools**: Specialized tools for assessing weather risks to infrastructure
+-   **Power Line Infrastructure Analysis**: Visualize and analyze power line networks
+-   **Integrated Weather Data**: Access weather forecasts and analyze weather-related risks
 
 ## 📋 Requirements
 
-- Python 3.10+
-- Google Gemini API key
-- Streamlit
-- GeoPandas and other geospatial libraries (see `requirements.txt` for full details)
+-   Python 3.10+
+-   Google Gemini API key
+-   Streamlit
+-   GeoPandas and other geospatial libraries (see `requirements.txt` for full details)
 
 ## 🚀 Quick Start
 
 1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/gemini-geospatial-streamlit.git
-   cd gemini-geospatial-streamlit
-   ```
+
+    ```bash
+    git clone https://github.com/yourusername/gemini-geospatial-streamlit.git
+    cd gemini-geospatial-streamlit
+    ```
 
 2. **Create a virtual environment and install dependencies**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    pip install -r requirements.txt
+    ```
 
 3. **Set up environment variables**
-   
-   Create a `.env` file in the project root with the following variables:
-   ```
-   PROJECT_ID=your_google_cloud_project_id
-   GCS_BUCKET_NAME=your_gcs_bucket_name
-   ```
 
-4. **Download supplementary shapefiles**
-   ```bash
-   python download_gcs_data.py
-   ```
-   This will download required shapefiles and other geospatial data from the specified GCS bucket to the `data/local` directory.
+    Create a `.env` file in the project root with the following variables:
 
-5. **Run the application**
-   ```bash
-   streamlit run app.py
-   ```
+    ```
+    PROJECT_ID=your_google_cloud_project_id
+    GCS_BUCKET_NAME=your_gcs_bucket_name
+    ```
 
-6. **Access the web interface**
-   
-   Open your browser and navigate to http://localhost:8501
+4. **Turn on Application Default Credentials (ADC)**
+
+    Authorize your user using your local `gcloud` command.
+
+    ```
+    gcloud auth application-default login
+    ```
+
+5. **Download supplementary shapefiles**
+
+    ```bash
+    python download_gcs_data.py
+    ```
+
+    This will download required shapefiles and other geospatial data from the specified GCS bucket to the `data/local` directory.
+
+6. **Run the application**
+
+    ```bash
+    streamlit run app.py
+    ```
+
+7. **Access the web interface**
+
+    Open your browser and navigate to http://localhost:8501
 
 ## 🧩 Architecture
 
 The application is structured into several key components:
 
-- `app.py`: Main entry point for the Streamlit application
-- `components/`: UI components including chat interface, map, and sidebar
-- `services/`: Core services for Gemini integration, map processing, and risk analysis
-- `data/`: Data access and processing modules
-- `utils/`: Utility functions and helpers
-- `action_handlers/`: Handlers for map actions triggered by AI responses
+-   `app.py`: Main entry point for the Streamlit application
+-   `components/`: UI components including chat interface, map, and sidebar
+-   `services/`: Core services for Gemini integration, map processing, and risk analysis
+-   `data/`: Data access and processing modules
+-   `utils/`: Utility functions and helpers
+-   `action_handlers/`: Handlers for map actions triggered by AI responses
 
 ## 🔍 Usage Examples
 
@@ -93,9 +107,9 @@ The application is structured into several key components:
 1. User submits a query through the chat interface
 2. The query is processed by the Gemini AI model with a specialized system prompt
 3. Gemini generates a structured response including:
-   - Text response for the user
-   - Map action instructions
-   - Optional structured data for visualization
+    - Text response for the user
+    - Map action instructions
+    - Optional structured data for visualization
 4. The application processes the map actions to update the interactive map
 5. Results are displayed to the user in both chat and map interfaces
 
@@ -103,14 +117,15 @@ The application is structured into several key components:
 
 You can configure the application behavior in the sidebar, including:
 
-- Model parameters
-- Feature toggles for specific capabilities
-- Date selection for weather forecasts
-- Debug panel for viewing system prompts and API responses
+-   Model parameters
+-   Feature toggles for specific capabilities
+-   Date selection for weather forecasts
+-   Debug panel for viewing system prompts and API responses
 
 ## Cloud Deployment
 
 ### 1. Enable Required APIs
+
 ```bash
 # enable services
 gcloud services enable storage.googleapis.com &&
@@ -129,6 +144,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJ
 ### 2. Deploy to Cloud Run
 
 **Manually enable IAP then run:**
+
 ```bash
 gcloud beta run deploy gemini-geospatial-streamlit \
 --source . \
@@ -149,12 +165,14 @@ gcloud beta run deploy gemini-geospatial-streamlit \
 -- Allow unauthenticated invocations...: N
 
 ### 3. Enable IAP
+
 2. Add IAP-secured Web App User to appropriate users
 
-
 ### 4: Configure Environment and Secrets
+
 1. Go to Cloud Run service → Source → Edit source
 2. Rename `.env.example` to `.env` and update with your configuration, for example:
+
 ```bash
 GCP_PROJECT_ID=your-project-id
 GCS_BUCKET_NAME=your-bucket
@@ -164,11 +182,11 @@ GCS_BUCKET_NAME=your-bucket
 
 The application uses several data sources:
 
-- Weather forecast data
-- US geographic boundaries (states, counties)
-- Power infrastructure data for Pennsylvania
-- Custom local datasets (as configured)
-- Supplementary shapefiles stored in a GCS bucket specified by the `GCS_BUCKET_NAME` environment variable
+-   Weather forecast data
+-   US geographic boundaries (states, counties)
+-   Power infrastructure data for Pennsylvania
+-   Custom local datasets (as configured)
+-   Supplementary shapefiles stored in a GCS bucket specified by the `GCS_BUCKET_NAME` environment variable
 
 ## 🤝 Contributing
 
