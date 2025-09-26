@@ -1,7 +1,7 @@
 import streamlit as st
 import geopandas as gpd
 import numpy as np
-from utils.streamlit_utils import add_status_message
+from shapely.geometry import LineString
 
 @st.cache_data
 def get_world_countries():
@@ -50,7 +50,6 @@ def find_region_by_name(gdf, region_name, column_names=None):
         return None
     
     # Check if the region name includes state info (e.g., "Erie County, PA" or "Erie, Pennsylvania")
-    county_state_pattern = None
     county_part = None
     state_part = None
     
@@ -166,4 +165,54 @@ def find_region_by_name(gdf, region_name, column_names=None):
                 return partial_matches
     
     # No match found
-    return None 
+    return None
+
+def convert_power_line_points_to_lines(points_gdf):
+    """
+    Convert power line points to line geometries by grouping points with the same ID
+    and connecting them in order based on normalized_distance.
+
+    Args:
+        points_gdf: GeoDataFrame with power line points
+
+    Returns:
+        GeoDataFrame with LineString geometries
+    """
+    if points_gdf is None or points_gdf.empty:
+        return None
+
+    # Check if ID column exists
+    if 'ID' not in points_gdf.columns:
+        return None
+
+    # Group points by ID field
+    grouped = points_gdf.groupby('ID')
+
+    lines = []
+    for _, group in grouped:
+        # Sort points by normalized_distance if available
+        if 'normalized_distance' in group.columns:
+            group = group.sort_values('normalized_distance')
+
+        # Extract coordinates from Point geometries
+        coords = [(point.x, point.y) for point in group.geometry]
+
+        # Create LineString if we have at least 2 points
+        if len(coords) >= 2:
+            line_geom = LineString(coords)
+
+            # Get the first row's attributes (they should be the same for all points in the group)
+            row_attrs = group.iloc[0].to_dict()
+            # Remove geometry from attributes
+            row_attrs.pop('geometry', None)
+
+            # Add the line geometry
+            row_attrs['geometry'] = line_geom
+            lines.append(row_attrs)
+
+    # Create new GeoDataFrame with LineString geometries
+    if lines:
+        lines_gdf = gpd.GeoDataFrame(lines, crs=points_gdf.crs)
+        return lines_gdf
+    else:
+        return None 

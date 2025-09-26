@@ -1,8 +1,6 @@
 """Handlers for data-related map actions"""
 import folium
-import json
 import pandas as pd
-import streamlit as st
 from action_handlers.base_handler import create_handler, ActionDict, BoundsList
 from data.geospatial_data import  (get_us_power_lines)
 from utils.streamlit_utils import add_status_message
@@ -78,38 +76,23 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
             add_status_message("Failed to load power line data.", "error")
             return bounds
         
-        # Log region polygon information
-        add_status_message(f"Region polygon bounds: {region_polygon.bounds}", "info")
-        
-        # No special cases - just log the information
-        add_status_message(f"Processing region: {region_name}", "info")
+        # Process the region filtering
         
         # Create a buffer around the region that follows its shape
         # Use a small buffer (~2km) to include points just outside the region boundary
         buffered_region = region_polygon.buffer(0.02)  # ~2km buffer in degrees
-        add_status_message(f"Created shape-following buffer for power line filtering", "info")
-        
-        # Display min/max coordinates of power line data as debugging info
-        pl_bounds = gdf.total_bounds
-        add_status_message(f"Power line data bounds: {pl_bounds}", "info")
         
         # First get a rough subset using the bounding box for performance
         # (much faster initial filter before the more precise spatial operation)
         minx, miny, maxx, maxy = buffered_region.bounds
-        rough_filtered = gdf[(gdf.geometry.x >= minx) & 
-                             (gdf.geometry.y >= miny) & 
-                             (gdf.geometry.x <= maxx) & 
+        rough_filtered = gdf[(gdf.geometry.x >= minx) &
+                             (gdf.geometry.y >= miny) &
+                             (gdf.geometry.x <= maxx) &
                              (gdf.geometry.y <= maxy)].copy()
-        
-        add_status_message(f"Initial bounding box filter: {len(rough_filtered)} points", "info")
-        
+
         # Then do precise filtering using the actual buffered shape
         # This is more accurate but slower, so we only do it on the subset
         filtered_gdf = rough_filtered[rough_filtered.intersects(buffered_region)].copy()
-        
-        add_status_message(f"Final shape-based filter: {len(filtered_gdf)} points", "info")
-        
-        add_status_message(f"Power lines in buffered bounds: {len(filtered_gdf)}", "info")
         
         # Use the filtered data
         gdf = filtered_gdf
@@ -121,8 +104,6 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
         
         # For display configuration
         layer_name = f"Power Lines ({region_name})"
-        default_color = "#0066cc"  # Blue for power lines
-        fill_color = "#ffff00"    # Yellow fill
     else:
         # st.warning(f"Unknown local dataset: {dataset_name}")
         return bounds
@@ -136,34 +117,27 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
         if pd.api.types.is_datetime64_any_dtype(gdf[col]):
             gdf[col] = gdf[col].astype(str)
     
-    # Create a tooltip with dataset information
-    default_tooltip_fields = ["ID", "VOLTAGE", "OWNER"] if "VOLTAGE" in gdf.columns else [gdf.columns[0]]
-    default_tooltip_aliases = ["Line ID", "Voltage (kV)", "Owner"] if "VOLTAGE" in gdf.columns else [gdf.columns[0]]
+    # We'll use custom tooltips per feature for better formatting
     
-    tooltip_fields = action.get("tooltip_fields", default_tooltip_fields)
-    tooltip_aliases = action.get("tooltip_aliases", default_tooltip_aliases)
-    
-    # Use tooltip if fields are available
-    tooltip = None
-    if tooltip_fields:
-        tooltip = folium.GeoJsonTooltip(
-            fields=tooltip_fields,
-            aliases=tooltip_aliases,
-            sticky=True
-        )
-    
+    # Convert points to lines for power line data
+    if dataset_name in ["power_lines", "pa_power_lines"] and all(geom.geom_type == 'Point' for geom in gdf.geometry):
+        from utils.geo_utils import convert_power_line_points_to_lines
+        lines_gdf = convert_power_line_points_to_lines(gdf)
+        if lines_gdf is not None and not lines_gdf.empty:
+            gdf = lines_gdf
+            add_status_message(f"Converted {len(gdf)} power lines for visualization", "info")
+
     # Detect if we're using points or lines for different rendering
     is_point_data = all(geom.geom_type == 'Point' for geom in gdf.geometry)
-    
+
     if is_point_data:
         # For point data, add individual dots with no markers
-        add_status_message(f"Rendering {len(gdf)} power line points as dots without markers", "info")
         
         # Create a feature group for the dots
         dot_group = folium.FeatureGroup(name=layer_name)
         
         # Add the points as dots (circles) directly
-        for idx, row in gdf.iterrows():
+        for _, row in gdf.iterrows():
             # Extract coordinates from the Point geometry
             coords = (row.geometry.y, row.geometry.x)
             
@@ -216,18 +190,60 @@ def handle_show_local_dataset(action: ActionDict, m: folium.Map) -> BoundsList:
         from services.risk_analyzer.visualization import create_voltage_legend
         create_voltage_legend(m)
     else:
-        # For line data, use regular GeoJSON style
-        geo_layer = folium.GeoJson(
-            json.loads(gdf.to_json()),
-            name=layer_name,
-            style_function=lambda x: {
-                'fillColor': action.get("fill_color", fill_color),
-                'color': action.get("color", default_color),
-                'weight': action.get("weight", 4),  # Thicker lines by default
-                'fillOpacity': action.get("fill_opacity", 0.5)
-            },
-            tooltip=tooltip
-        ).add_to(m)
+        # For line data (power lines converted from points)
+
+        # Create a feature group for the lines
+        line_group = folium.FeatureGroup(name=layer_name)
+
+        # Add each line with voltage-based coloring
+        for _, row in gdf.iterrows():
+            # Get voltage for color determination
+            voltage = row.get('VOLTAGE', 0)
+
+            # Create color spectrum based on voltage
+            # Low voltage (0-100kV): Yellow
+            # Medium voltage (100-300kV): Orange
+            # High voltage (300-500kV): Red
+            # Very high voltage (500+ kV): Dark red
+            if voltage < 100:
+                line_color = '#FFD700'  # Yellow for low voltage
+            elif voltage < 300:
+                line_color = '#FFA500'  # Orange for medium voltage
+            elif voltage < 500:
+                line_color = '#FF0000'  # Red for high voltage
+            else:
+                line_color = '#8B0000'  # DarkRed for very high voltage
+
+            # Create enhanced tooltip with additional information
+            line_tooltip = f"""
+            <div style='min-width: 200px;'>
+                <b>Line ID:</b> {row.get('ID', 'N/A')}<br>
+                <b>Voltage:</b> {row.get('VOLTAGE', 'N/A')} kV<br>
+                <b>Type:</b> {row.get('TYPE', 'N/A')}<br>
+                <b>Status:</b> {row.get('STATUS', 'N/A')}<br>
+                <b>Owner:</b> {row.get('OWNER', 'N/A')}<br>
+                <b>Substations:</b> {row.get('SUB_1', 'N/A')} to {row.get('SUB_2', 'N/A')}
+            </div>
+            """
+
+            # Use PolyLine for better line rendering
+            line_coords = [[y, x] for x, y in row.geometry.coords]
+
+            # Add the line to the map with voltage-based color
+            folium.PolyLine(
+                locations=line_coords,
+                color=line_color,
+                weight=4,
+                opacity=0.9,
+                tooltip=line_tooltip
+            ).add_to(line_group)
+
+        # Add the feature group to the map
+        line_group.add_to(m)
+
+        # Add voltage legend
+        from services.risk_analyzer.visualization import create_voltage_legend
+        create_voltage_legend(m)
     
     # Add dataset bounds to bounds list
     dataset_bounds = gdf.total_bounds

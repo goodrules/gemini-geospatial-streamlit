@@ -481,7 +481,7 @@ def create_voltage_legend(m):
 def add_power_lines_to_map(power_lines_gdf, high_risk_df, moderate_risk_df, selected_event_id, risk_events, m):
     """
     Add power lines to the map, filtered to only those in risk areas.
-    
+
     Args:
         power_lines_gdf: GeoDataFrame with power line geometries.
         high_risk_df: GeoDataFrame with high risk areas.
@@ -491,7 +491,8 @@ def add_power_lines_to_map(power_lines_gdf, high_risk_df, moderate_risk_df, sele
         m: Folium map object.
     """
     import geopandas as gpd
-    
+    from utils.geo_utils import convert_power_line_points_to_lines
+
     try:
         # Get all the risk geometry - either for specific event or all events
         risk_geometry = None
@@ -524,55 +525,119 @@ def add_power_lines_to_map(power_lines_gdf, high_risk_df, moderate_risk_df, sele
         if filtered_power_lines.empty:
             add_status_message(f"No power lines found in {area_description}.", "info")
             return
-            
-        add_status_message(f"Rendering {len(filtered_power_lines)} power line points in {area_description}", "info")
-        
-        # Create a feature group for power lines
-        feature_name = "Power Lines in Risk Areas" if risk_geometry is not None else "Power Lines in Region"
-        dot_group = folium.FeatureGroup(name=f"{feature_name} ({len(filtered_power_lines)} points)")
-        
-        # Add power line points to the map
-        for idx, row in filtered_power_lines.iterrows():
-            # Extract coordinates
-            coords = (row.geometry.y, row.geometry.x)
-            
-            # Create tooltip
-            point_tooltip = f"""
-            <div style='min-width: 200px;'>
-                <b>Voltage:</b> {row.get('VOLTAGE', 'N/A')} kV<br>
-                <b>Type:</b> {row.get('TYPE', 'N/A')}<br>
-                <b>Owner:</b> {row.get('OWNER', 'N/A')}<br>
-                <b>Description:</b> {row.get('NAICS_DESC', 'N/A')}
-            </div>
-            """
-            
-            # Determine color based on voltage
-            voltage = row.get('VOLTAGE', 0)
-            
-            if voltage < 100:
-                line_color = '#FFD700'  # Yellow for low voltage
-            elif voltage < 300:
-                line_color = '#FFA500'  # Orange for medium voltage
-            elif voltage < 500:
-                line_color = '#FF0000'  # Red for high voltage
+
+        # Convert points to lines for power line data
+        if all(geom.geom_type == 'Point' for geom in filtered_power_lines.geometry):
+            lines_gdf = convert_power_line_points_to_lines(filtered_power_lines)
+            if lines_gdf is not None and not lines_gdf.empty:
+                filtered_power_lines = lines_gdf
+                is_line_data = True
             else:
-                line_color = '#8B0000'  # DarkRed for very high voltage
-            
-            # Create a circle with voltage-based colors
-            folium.Circle(
-                location=coords,
-                radius=400,  # Adjusted to 400 meters
-                color=line_color,
-                weight=2,
-                fill=True,
-                fill_color=line_color,
-                fill_opacity=0.7,
-                tooltip=point_tooltip,
-                zIndex=1000  # High z-index to ensure they're on top
-            ).add_to(dot_group)
-        
-        # Add the feature group to the map
-        dot_group.add_to(m)
+                is_line_data = False
+        else:
+            # Check if we already have LineStrings
+            is_line_data = any(geom.geom_type == 'LineString' for geom in filtered_power_lines.geometry)
+
+        if is_line_data:
+            # Render as lines
+            add_status_message(f"Rendering {len(filtered_power_lines)} power lines in {area_description}", "info")
+
+            # Create a feature group for power lines
+            feature_name = "Power Lines in Risk Areas" if risk_geometry is not None else "Power Lines in Region"
+            line_group = folium.FeatureGroup(name=f"{feature_name} ({len(filtered_power_lines)} lines)")
+
+            # Add each line with voltage-based coloring
+            for _, row in filtered_power_lines.iterrows():
+                # Get voltage for color determination
+                voltage = row.get('VOLTAGE', 0)
+
+                # Create color spectrum based on voltage
+                if voltage < 100:
+                    line_color = '#FFD700'  # Yellow for low voltage
+                elif voltage < 300:
+                    line_color = '#FFA500'  # Orange for medium voltage
+                elif voltage < 500:
+                    line_color = '#FF0000'  # Red for high voltage
+                else:
+                    line_color = '#8B0000'  # DarkRed for very high voltage
+
+                # Create tooltip
+                line_tooltip = f"""
+                <div style='min-width: 200px;'>
+                    <b>Line ID:</b> {row.get('ID', 'N/A')}<br>
+                    <b>Voltage:</b> {row.get('VOLTAGE', 'N/A')} kV<br>
+                    <b>Type:</b> {row.get('TYPE', 'N/A')}<br>
+                    <b>Status:</b> {row.get('STATUS', 'N/A')}<br>
+                    <b>Owner:</b> {row.get('OWNER', 'N/A')}<br>
+                    <b>Substations:</b> {row.get('SUB_1', 'N/A')} to {row.get('SUB_2', 'N/A')}
+                </div>
+                """
+
+                # Use PolyLine for better line rendering
+                line_coords = [[y, x] for x, y in row.geometry.coords]
+
+                # Add the line to the map with voltage-based color
+                folium.PolyLine(
+                    locations=line_coords,
+                    color=line_color,
+                    weight=4,
+                    opacity=0.9,
+                    tooltip=line_tooltip
+                ).add_to(line_group)
+
+            # Add the feature group to the map
+            line_group.add_to(m)
+
+        else:
+            # Render as points (fallback)
+            add_status_message(f"Rendering {len(filtered_power_lines)} power line points in {area_description}", "info")
+
+            # Create a feature group for power lines
+            feature_name = "Power Lines in Risk Areas" if risk_geometry is not None else "Power Lines in Region"
+            dot_group = folium.FeatureGroup(name=f"{feature_name} ({len(filtered_power_lines)} points)")
+
+            # Add power line points to the map
+            for _, row in filtered_power_lines.iterrows():
+                # Extract coordinates
+                coords = (row.geometry.y, row.geometry.x)
+
+                # Create tooltip
+                point_tooltip = f"""
+                <div style='min-width: 200px;'>
+                    <b>Voltage:</b> {row.get('VOLTAGE', 'N/A')} kV<br>
+                    <b>Type:</b> {row.get('TYPE', 'N/A')}<br>
+                    <b>Owner:</b> {row.get('OWNER', 'N/A')}<br>
+                    <b>Description:</b> {row.get('NAICS_DESC', 'N/A')}
+                </div>
+                """
+
+                # Determine color based on voltage
+                voltage = row.get('VOLTAGE', 0)
+
+                if voltage < 100:
+                    line_color = '#FFD700'  # Yellow for low voltage
+                elif voltage < 300:
+                    line_color = '#FFA500'  # Orange for medium voltage
+                elif voltage < 500:
+                    line_color = '#FF0000'  # Red for high voltage
+                else:
+                    line_color = '#8B0000'  # DarkRed for very high voltage
+
+                # Create a circle with voltage-based colors
+                folium.Circle(
+                    location=coords,
+                    radius=400,  # Adjusted to 400 meters
+                    color=line_color,
+                    weight=2,
+                    fill=True,
+                    fill_color=line_color,
+                    fill_opacity=0.7,
+                    tooltip=point_tooltip,
+                    zIndex=1000  # High z-index to ensure they're on top
+                ).add_to(dot_group)
+
+            # Add the feature group to the map
+            dot_group.add_to(m)
         
         # Add voltage legend to the map
         create_voltage_legend(m)
@@ -707,77 +772,8 @@ def add_risk_layer_for_event(event_id, event_data, risk_events, is_pl_impact, m,
         except Exception as e:
             add_status_message(f"Error adding moderate risk areas for {event_display_name}: {str(e)}", "error")
     
-    # Add power lines if provided
-    if power_lines_gdf is not None and not power_lines_gdf.empty:
-        power_line_group = folium.FeatureGroup(name=f"Power Lines - {event_display_name}")
-        
-        try:
-            # Get risk geometry
-            risk_geometry = None
-            if event_id == "all_timestamps":
-                if high_risk_df is not None and not high_risk_df.empty:
-                    risk_geometry = high_risk_df.geometry.unary_union
-                if moderate_risk_df is not None and not moderate_risk_df.empty:
-                    if risk_geometry is not None:
-                        risk_geometry = risk_geometry.union(moderate_risk_df.geometry.unary_union)
-                    else:
-                        risk_geometry = moderate_risk_df.geometry.unary_union
-            else:
-                # Get geometry for specific event
-                event_gdf = risk_events.get(event_id)
-                if event_gdf is not None and not event_gdf.empty:
-                    risk_geometry = event_gdf.geometry.unary_union
-            
-            # Filter power lines
-            if risk_geometry is not None:
-                filtered_power_lines = power_lines_gdf[power_lines_gdf.intersects(risk_geometry)].copy()
-            else:
-                filtered_power_lines = power_lines_gdf.copy()
-            
-            if not filtered_power_lines.empty:
-                # Add power line points
-                for idx, row in filtered_power_lines.iterrows():
-                    coords = (row.geometry.y, row.geometry.x)
-                    
-                    # Create tooltip
-                    point_tooltip = f"""
-                    <div style='min-width: 200px;'>
-                        <b>Voltage:</b> {row.get('VOLTAGE', 'N/A')} kV<br>
-                        <b>Type:</b> {row.get('TYPE', 'N/A')}<br>
-                        <b>Owner:</b> {row.get('OWNER', 'N/A')}<br>
-                        <b>Description:</b> {row.get('NAICS_DESC', 'N/A')}
-                    </div>
-                    """
-                    
-                    # Determine color based on voltage
-                    voltage = row.get('VOLTAGE', 0)
-                    
-                    if voltage < 100:
-                        line_color = '#FFD700'  # Yellow for low voltage
-                    elif voltage < 300:
-                        line_color = '#FFA500'  # Orange for medium voltage
-                    elif voltage < 500:
-                        line_color = '#FF0000'  # Red for high voltage
-                    else:
-                        line_color = '#8B0000'  # DarkRed for very high voltage
-                    
-                    # Create a circle with voltage-based colors
-                    folium.Circle(
-                        location=coords,
-                        radius=400,  # Adjusted to 400 meters
-                        color=line_color,
-                        weight=2,
-                        fill=True,
-                        fill_color=line_color,
-                        fill_opacity=0.7,
-                        tooltip=point_tooltip,
-                        zIndex=1000  # High z-index to ensure they're on top
-                    ).add_to(power_line_group)
-                
-                # Add power line group to parent feature group
-                power_line_group.add_to(feature_group)
-        except Exception as e:
-            add_status_message(f"Error adding power lines for {event_display_name}: {str(e)}", "error")
+    # Power lines are now rendered separately using add_power_lines_to_map
+    # This section is removed to avoid duplicate rendering as dots
     
     # Add the main feature group to the map
     feature_group.add_to(m)
@@ -857,11 +853,42 @@ def display_risk_results(risk_summary, risk_events, m, power_lines_gdf, bounds):
                     power_lines_gdf
                 )
             
+            # Add power lines to the map using the dedicated function
+            if power_lines_gdf is not None and not power_lines_gdf.empty:
+                # Get all risk dataframes for the "all_timestamps" view
+                all_high_risk_df = None
+                all_moderate_risk_df = None
+
+                for event_id, event_gdf in risk_events.items():
+                    if event_gdf is not None and not event_gdf.empty:
+                        high_risk_mask = event_gdf['risk_level'] == 'high'
+                        moderate_risk_mask = event_gdf['risk_level'] == 'moderate'
+
+                        if high_risk_mask.any():
+                            if all_high_risk_df is None:
+                                all_high_risk_df = event_gdf[high_risk_mask]
+                            else:
+                                all_high_risk_df = pd.concat([all_high_risk_df, event_gdf[high_risk_mask]])
+
+                        if moderate_risk_mask.any():
+                            if all_moderate_risk_df is None:
+                                all_moderate_risk_df = event_gdf[moderate_risk_mask]
+                            else:
+                                all_moderate_risk_df = pd.concat([all_moderate_risk_df, event_gdf[moderate_risk_mask]])
+
+                # Call the function that converts points to lines and renders them
+                add_power_lines_to_map(
+                    power_lines_gdf,
+                    all_high_risk_df,
+                    all_moderate_risk_df,
+                    "all_timestamps",
+                    risk_events,
+                    m
+                )
+
             # Add layer control to the map
             folium.LayerControl().add_to(m)
-            
-            # Add voltage legend to the map if power lines are used
-            if power_lines_gdf is not None and not power_lines_gdf.empty:
-                create_voltage_legend(m)
+
+            # Voltage legend is already added in add_power_lines_to_map
         else:
             add_status_message("Wind risk areas found, but no specific event timestamps generated.", "warning") 
