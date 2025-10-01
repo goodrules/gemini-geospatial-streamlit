@@ -176,6 +176,7 @@ gcloud beta run deploy gemini-geospatial-streamlit \
 ```bash
 GCP_PROJECT_ID=your-project-id
 GCS_BUCKET_NAME=your-bucket
+DEFAULT_MODEL=gemini-2.5-flash
 ```
 
 ## 📊 Data Sources
